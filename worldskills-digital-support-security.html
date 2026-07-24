@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WorldSkills UK | Digital Support &amp; Security</title>
+    <meta name="description" content="Explainer for the WorldSkills UK Digital Support &amp; Security competition — what it covers, key dates, useful links, and how students can express interest.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ink: #0E1A2B;
+            --ink-soft: #2C3B52;
+            --muted: #5A6B82;
+            --paper: #F3F6FA;
+            --paper-2: #E7EDF5;
+            --line: #C8D3E2;
+            --white: #FFFFFF;
+            --navy: #0A2744;
+            --signal: #0F8F8C;
+            --signal-deep: #0A6E6C;
+            --accent: #F0A202;
+            --max: 68rem;
+            --ease: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Manrope', sans-serif;
+            color: var(--ink);
+            background-color: var(--paper);
+            background-image:
+                radial-gradient(ellipse 80% 45% at 100% 0%, rgba(15, 143, 140, 0.12), transparent 55%),
+                radial-gradient(ellipse 60% 40% at 0% 30%, rgba(240, 162, 2, 0.08), transparent 50%),
+                linear-gradient(180deg, #F7F9FC 0%, #EAF0F7 48%, #F4F1EB 100%);
+            line-height: 1.65;
+            overflow-x: hidden;
+        }
+
+        a { color: var(--signal-deep); text-underline-offset: 0.15em; }
+        a:hover { color: var(--navy); }
+
+        img, svg { display: block; max-width: 100%; }
+
+        .site-nav {
+            position: sticky;
+            top: 0;
+            z-index: 40;
+            backdrop-filter: blur(12px);
+            background: rgba(243, 246, 250, 0.86);
+            border-bottom: 1px solid rgba(200, 211, 226, 0.75);
+        }
+
+        .site-nav__inner {
+            max-width: var(--max);
+            margin: 0 auto;
+            padding: 0.85rem 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .site-nav__brand {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: 1.05rem;
+            letter-spacing: -0.03em;
+            color: var(--ink);
+            text-decoration: none;
+        }
+
+        .site-nav__brand span { color: var(--signal); }
+
+        .site-nav__links {
+            display: flex;
+            gap: 1.25rem;
+            list-style: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .site-nav__links a {
+            color: var(--ink-soft);
+            text-decoration: none;
+        }
+
+        .site-nav__links a:hover { color: var(--signal-deep); }
+
+        @media (max-width: 720px) {
+            .site-nav__links { display: none; }
+        }
+
+        /* ——— Hero ——— */
+        .hero {
+            position: relative;
+            min-height: min(100vh, 48rem);
+            display: grid;
+            align-items: end;
+            overflow: hidden;
+        }
+
+        .hero__plane {
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 55% 50% at 78% 42%, rgba(15, 143, 140, 0.35), transparent 62%),
+                radial-gradient(ellipse 40% 35% at 18% 78%, rgba(240, 162, 2, 0.18), transparent 55%),
+                linear-gradient(155deg, #071522 0%, #0A2744 48%, #123556 100%);
+        }
+
+        .hero__mesh {
+            position: absolute;
+            inset: 0;
+            opacity: 0.28;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.11) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.11) 1px, transparent 1px);
+            background-size: 42px 42px;
+            mask-image: linear-gradient(180deg, rgba(0,0,0,0.75), transparent 92%);
+            animation: meshDrift 18s linear infinite;
+        }
+
+        .hero__visual {
+            position: absolute;
+            right: -2%;
+            bottom: 6%;
+            width: min(62vw, 38rem);
+            height: auto;
+            opacity: 0;
+            animation: heroIn 1.1s var(--ease) 0.15s forwards;
+        }
+
+        .hero__content {
+            position: relative;
+            z-index: 2;
+            max-width: var(--max);
+            margin: 0 auto;
+            padding: 6rem 1.25rem 4.25rem;
+            color: var(--white);
+        }
+
+        .hero__brand {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: clamp(2.8rem, 10vw, 5.6rem);
+            letter-spacing: -0.045em;
+            line-height: 0.92;
+            margin-bottom: 1rem;
+            opacity: 0;
+            animation: rise 0.9s var(--ease) 0.05s forwards;
+        }
+
+        .hero__brand em {
+            font-style: normal;
+            color: #5EEAD4;
+        }
+
+        .hero__headline {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            font-size: clamp(1.2rem, 2.6vw, 1.7rem);
+            letter-spacing: -0.02em;
+            max-width: 22ch;
+            margin-bottom: 0.85rem;
+            opacity: 0;
+            animation: rise 0.9s var(--ease) 0.18s forwards;
+        }
+
+        .hero__lede {
+            font-size: 1.05rem;
+            color: rgba(255, 255, 255, 0.72);
+            max-width: 38ch;
+            margin-bottom: 1.75rem;
+            opacity: 0;
+            animation: rise 0.9s var(--ease) 0.3s forwards;
+        }
+
+        .hero__actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem 1rem;
+            opacity: 0;
+            animation: rise 0.9s var(--ease) 0.42s forwards;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+            text-decoration: none;
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            font-size: 0.95rem;
+            padding: 0.9rem 1.35rem;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            transition: background 0.25s ease, color 0.25s ease, transform 0.25s var(--ease), border-color 0.25s ease;
+        }
+
+        .btn:hover { transform: translateY(-2px); }
+
+        .btn--primary {
+            background: var(--signal);
+            color: var(--white);
+        }
+
+        .btn--primary:hover { background: var(--signal-deep); color: var(--white); }
+
+        .btn--ghost {
+            background: transparent;
+            color: var(--white);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+        }
+
+        .btn--ghost:hover {
+            border-color: rgba(255, 255, 255, 0.7);
+            color: var(--white);
+        }
+
+        .btn svg { width: 1rem; height: 1rem; }
+
+        /* ——— Sections ——— */
+        .section {
+            max-width: var(--max);
+            margin: 0 auto;
+            padding: 4.5rem 1.25rem 0;
+        }
+
+        .section__kicker {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--signal-deep);
+            margin-bottom: 0.7rem;
+        }
+
+        .section__title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: clamp(1.55rem, 3.2vw, 2.15rem);
+            letter-spacing: -0.03em;
+            line-height: 1.15;
+            max-width: 28ch;
+            margin-bottom: 0.85rem;
+        }
+
+        .section__text {
+            font-size: 1.05rem;
+            color: var(--ink-soft);
+            max-width: 54ch;
+            margin-bottom: 1.75rem;
+        }
+
+        .split {
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 2.5rem;
+            align-items: start;
+        }
+
+        @media (max-width: 860px) {
+            .split { grid-template-columns: 1fr; gap: 1.5rem; }
+        }
+
+        .skill-rail {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.55rem 0.7rem;
+            list-style: none;
+            margin-top: 0.5rem;
+        }
+
+        .skill-rail li {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            font-size: 0.92rem;
+            color: var(--ink);
+            border-bottom: 2px solid var(--accent);
+            padding: 0.15rem 0.05rem;
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        .skill-rail li.is-in {
+            animation: rise 0.55s var(--ease) forwards;
+        }
+
+        .task-list {
+            list-style: none;
+            display: grid;
+            gap: 0.9rem;
+            margin-top: 0.25rem;
+        }
+
+        .task-list li {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0.85rem;
+            align-items: start;
+            color: var(--ink-soft);
+        }
+
+        .task-list strong {
+            display: block;
+            color: var(--ink);
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            margin-bottom: 0.15rem;
+        }
+
+        .task-list .mark {
+            width: 1.55rem;
+            height: 1.55rem;
+            border-radius: 4px;
+            background: rgba(15, 143, 140, 0.12);
+            color: var(--signal-deep);
+            display: grid;
+            place-items: center;
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: 0.78rem;
+            margin-top: 0.15rem;
+        }
+
+        .pathway {
+            display: grid;
+            gap: 0;
+            border-left: 2px solid var(--line);
+            margin-left: 0.55rem;
+            padding-left: 1.35rem;
+        }
+
+        .pathway__step {
+            position: relative;
+            padding: 0 0 1.75rem;
+        }
+
+        .pathway__step:last-child { padding-bottom: 0; }
+
+        .pathway__step::before {
+            content: '';
+            position: absolute;
+            left: -1.85rem;
+            top: 0.35rem;
+            width: 0.7rem;
+            height: 0.7rem;
+            border-radius: 50%;
+            background: var(--signal);
+            box-shadow: 0 0 0 4px rgba(15, 143, 140, 0.18);
+        }
+
+        .pathway__step h3 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 650;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.3rem;
+        }
+
+        .pathway__step p {
+            color: var(--ink-soft);
+            font-size: 0.98rem;
+            max-width: 52ch;
+        }
+
+        .pathway__step .when {
+            display: block;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--signal-deep);
+            margin-bottom: 0.35rem;
+            letter-spacing: 0.01em;
+        }
+
+        .qualify-list {
+            list-style: none;
+            display: grid;
+            gap: 0.55rem;
+            margin-top: 0.5rem;
+        }
+
+        .qualify-list li {
+            position: relative;
+            padding-left: 1.15rem;
+            color: var(--ink-soft);
+        }
+
+        .qualify-list li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0.65rem;
+            width: 0.45rem;
+            height: 0.45rem;
+            background: var(--accent);
+        }
+
+        .link-stack {
+            list-style: none;
+            display: grid;
+            gap: 0.85rem;
+            margin-top: 0.35rem;
+        }
+
+        .link-stack a {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            text-decoration: none;
+            color: var(--ink);
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            font-size: 1.02rem;
+            padding: 0.85rem 0;
+            border-bottom: 1px solid var(--line);
+            transition: color 0.2s ease, padding-left 0.25s var(--ease);
+        }
+
+        .link-stack a:hover {
+            color: var(--signal-deep);
+            padding-left: 0.35rem;
+        }
+
+        .link-stack span {
+            font-family: 'Manrope', sans-serif;
+            font-weight: 500;
+            font-size: 0.85rem;
+            color: var(--muted);
+            flex: 1;
+            text-align: right;
+        }
+
+        .link-stack svg {
+            width: 1rem;
+            height: 1rem;
+            flex-shrink: 0;
+            color: var(--signal);
+        }
+
+        /* EOI — interactive container */
+        .eoi {
+            margin-top: 1rem;
+            background: var(--white);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 1.5rem 1.35rem 1.35rem;
+        }
+
+        .eoi__note {
+            font-size: 0.92rem;
+            color: var(--muted);
+            margin-bottom: 1.25rem;
+            max-width: 52ch;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem 1.1rem;
+        }
+
+        @media (max-width: 640px) {
+            .form-grid { grid-template-columns: 1fr; }
+        }
+
+        .field { display: grid; gap: 0.35rem; }
+        .field--full { grid-column: 1 / -1; }
+
+        .field label {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.82rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            color: var(--ink-soft);
+        }
+
+        .field input,
+        .field select,
+        .field textarea {
+            width: 100%;
+            font: inherit;
+            color: var(--ink);
+            background: var(--paper);
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            padding: 0.75rem 0.85rem;
+            outline: none;
+            transition: border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .field input:focus,
+        .field select:focus,
+        .field textarea:focus {
+            border-color: var(--signal);
+            background: var(--white);
+        }
+
+        .field textarea { min-height: 6.5rem; resize: vertical; }
+
+        .field .hint {
+            font-size: 0.78rem;
+            color: var(--muted);
+        }
+
+        .eoi__actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.85rem 1.1rem;
+            margin-top: 1.15rem;
+        }
+
+        .eoi__status {
+            font-size: 0.92rem;
+            color: var(--signal-deep);
+            font-weight: 600;
+            min-height: 1.3em;
+        }
+
+        .eoi__status[data-state="error"] { color: #B42318; }
+        .eoi__status[data-state="ok"] { color: var(--signal-deep); }
+
+        .interest-board {
+            margin-top: 2rem;
+        }
+
+        .interest-board__title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 650;
+            font-size: 1.05rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .interest-board__list {
+            list-style: none;
+            display: grid;
+            gap: 0.55rem;
+        }
+
+        .interest-board__list li {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 0.75rem;
+            align-items: baseline;
+            padding: 0.75rem 0;
+            border-bottom: 1px dashed var(--line);
+            color: var(--ink-soft);
+            font-size: 0.95rem;
+        }
+
+        .interest-board__list .name {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .interest-board__list .meta {
+            font-size: 0.82rem;
+            color: var(--muted);
+            text-align: right;
+        }
+
+        .interest-board__empty {
+            color: var(--muted);
+            font-size: 0.95rem;
+            padding: 0.5rem 0 0.25rem;
+        }
+
+        .placeholder-strip {
+            margin-top: 1.75rem;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+
+        @media (max-width: 720px) {
+            .placeholder-strip { grid-template-columns: 1fr; }
+        }
+
+        .placeholder-strip article {
+            border-top: 2px solid var(--line);
+            padding-top: 0.85rem;
+        }
+
+        .placeholder-strip h3 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 650;
+            margin-bottom: 0.35rem;
+        }
+
+        .placeholder-strip p {
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
+        .placeholder-strip .slot {
+            display: inline-block;
+            margin-top: 0.45rem;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--ink-soft);
+            border-bottom: 1px dotted var(--muted);
+            min-width: 8rem;
+        }
+
+        .cta-band {
+            max-width: var(--max);
+            margin: 4.5rem auto 0;
+            padding: 0 1.25rem;
+        }
+
+        .cta-band__inner {
+            background:
+                radial-gradient(ellipse 50% 80% at 90% 50%, rgba(15, 143, 140, 0.25), transparent 60%),
+                linear-gradient(135deg, #0A2744 0%, #123556 100%);
+            color: var(--white);
+            padding: 2.25rem 1.75rem;
+            border-radius: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.25rem;
+        }
+
+        .cta-band h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(1.25rem, 2.5vw, 1.6rem);
+            letter-spacing: -0.02em;
+            max-width: 22ch;
+            margin-bottom: 0.4rem;
+        }
+
+        .cta-band p {
+            color: rgba(255, 255, 255, 0.7);
+            max-width: 38ch;
+            font-size: 0.98rem;
+        }
+
+        .site-footer {
+            max-width: var(--max);
+            margin: 0 auto;
+            padding: 3rem 1.25rem 2.5rem;
+            color: var(--muted);
+            font-size: 0.88rem;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 0.75rem 1.5rem;
+            border-top: 1px solid var(--line);
+            margin-top: 4rem;
+        }
+
+        .site-footer a {
+            color: var(--ink-soft);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .site-footer a:hover { color: var(--signal-deep); }
+
+        @keyframes rise {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes heroIn {
+            from { opacity: 0; transform: translateX(24px) scale(0.96); }
+            to { opacity: 0.95; transform: translateX(0) scale(1); }
+        }
+
+        @keyframes meshDrift {
+            from { background-position: 0 0, 0 0; }
+            to { background-position: 42px 42px, 42px 42px; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation: none !important;
+                transition: none !important;
+            }
+            .hero__visual, .hero__brand, .hero__headline, .hero__lede, .hero__actions {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="site-nav" aria-label="Page">
+        <div class="site-nav__inner">
+            <a class="site-nav__brand" href="index.html">TUTORIALS <span>/</span> WorldSkills</a>
+            <ul class="site-nav__links">
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#pathway">Pathway</a></li>
+                <li><a href="#resources">Resources</a></li>
+                <li><a href="#interest">Express interest</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="hero__plane" aria-hidden="true"></div>
+        <div class="hero__mesh" aria-hidden="true"></div>
+        <svg class="hero__visual" viewBox="0 0 640 420" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <rect x="48" y="70" width="210" height="140" rx="8" stroke="#5EEAD4" stroke-width="2" fill="rgba(15,143,140,0.12)"/>
+            <rect x="88" y="110" width="130" height="18" rx="3" fill="rgba(255,255,255,0.18)"/>
+            <rect x="88" y="140" width="90" height="12" rx="2" fill="rgba(255,255,255,0.1)"/>
+            <circle cx="380" cy="150" r="54" stroke="#F0A202" stroke-width="2" fill="rgba(240,162,2,0.12)"/>
+            <path d="M358 150h44M380 128v44" stroke="#F0A202" stroke-width="2"/>
+            <rect x="470" y="95" width="120" height="170" rx="10" stroke="rgba(255,255,255,0.45)" stroke-width="2" fill="rgba(255,255,255,0.06)"/>
+            <circle cx="530" cy="145" r="18" stroke="#5EEAD4" stroke-width="2"/>
+            <rect x="498" y="185" width="64" height="10" rx="2" fill="rgba(255,255,255,0.2)"/>
+            <rect x="508" y="205" width="44" height="8" rx="2" fill="rgba(255,255,255,0.12)"/>
+            <path d="M258 140h68M434 150h36" stroke="rgba(255,255,255,0.35)" stroke-width="2" stroke-dasharray="6 6"/>
+            <rect x="120" y="260" width="280" height="90" rx="8" stroke="rgba(255,255,255,0.28)" stroke-width="2" fill="rgba(10,39,68,0.35)"/>
+            <text x="145" y="312" fill="rgba(255,255,255,0.55)" font-family="Space Grotesk, sans-serif" font-size="18">LAN · Domain · CISCO</text>
+        </svg>
+        <div class="hero__content">
+            <p class="hero__brand">World<em>Skills</em></p>
+            <h1 class="hero__headline">Digital Support &amp; Security</h1>
+            <p class="hero__lede">National competition for learners who configure, secure, and troubleshoot real IT systems under pressure.</p>
+            <div class="hero__actions">
+                <a class="btn btn--primary" href="#interest">
+                    Express interest
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </a>
+                <a class="btn btn--ghost" href="https://www.worldskillsuk.org/competitions/digital-support-security/" target="_blank" rel="noopener noreferrer">
+                    Official competition page
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <section class="section" id="overview">
+        <p class="section__kicker">What it is</p>
+        <h2 class="section__title">A merged national skills competition for IT support and networks.</h2>
+        <div class="split">
+            <p class="section__text">
+                Digital Support &amp; Security is crucial to the economy and day-to-day functioning of the modern world.
+                This WorldSkills UK competition focuses on the essentials of a career in digital support and security across industries.
+                It brings together the former <strong>IT Support Technician</strong> and <strong>Network Infrastructure Technician</strong> competitions into one pathway.
+            </p>
+            <ul class="task-list" aria-label="What competitors are tested on">
+                <li>
+                    <span class="mark">01</span>
+                    <div>
+                        <strong>Client / server networks</strong>
+                        Set up a domain controller and configure systems to meet customer requirements.
+                    </div>
+                </li>
+                <li>
+                    <span class="mark">02</span>
+                    <div>
+                        <strong>Operating systems &amp; IP</strong>
+                        Configure OS settings and IP addresses on end devices.
+                    </div>
+                </li>
+                <li>
+                    <span class="mark">03</span>
+                    <div>
+                        <strong>CISCO networking</strong>
+                        Configure, maintain, and troubleshoot ICT networks, connecting devices to a LAN.
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </section>
+
+    <section class="section" id="skills">
+        <p class="section__kicker">Skills you need</p>
+        <h2 class="section__title">Technical ability plus calm decision-making under time pressure.</h2>
+        <p class="section__text">Judges look for more than tool knowledge. You need to plan, communicate, and recover when something breaks.</p>
+        <ul class="skill-rail" id="skill-rail">
+            <li>IT skills</li>
+            <li>Attention to detail</li>
+            <li>Time management</li>
+            <li>Problem solving</li>
+            <li>Interpersonal skills</li>
+            <li>Troubleshooting</li>
+            <li>Flexibility</li>
+            <li>Planning &amp; organising</li>
+        </ul>
+    </section>
+
+    <section class="section" id="pathway">
+        <p class="section__kicker">How it works · 2026</p>
+        <h2 class="section__title">From registration to the UK Final in Wales.</h2>
+        <p class="section__text">Dates below are from the official WorldSkills UK competition page. Always confirm on the live site before planning travel or release time.</p>
+        <div class="pathway">
+            <article class="pathway__step">
+                <span class="when">Mon 2 Mar 2026, 9am → Fri 27 Mar 2026, midnight</span>
+                <h3>1. Register</h3>
+                <p>Open the registration window early. Centre staff usually need to support the entry.</p>
+            </article>
+            <article class="pathway__step">
+                <span class="when">Released from Mon 2 Mar · deadline Fri 24 Apr 2026</span>
+                <h3>2. Entry Stage</h3>
+                <p>Complete the entry-stage tasks within the published window.</p>
+            </article>
+            <article class="pathway__step">
+                <span class="when">Remote · May–June 2026 (multiple dates)</span>
+                <h3>3. National Qualifiers</h3>
+                <p>Remote qualifier sittings run across late May and June 2026. Check the official page for your allocated date.</p>
+            </article>
+            <article class="pathway__step">
+                <span class="when">After qualification</span>
+                <h3>4. Training &amp; development</h3>
+                <p>Finalists get technical training and mindset support via WorldSkills UK Learning Lab resources.</p>
+            </article>
+            <article class="pathway__step">
+                <span class="when">Week commencing 16 Nov 2026 · Wales</span>
+                <h3>5. National Finals</h3>
+                <p>The UK Final is scheduled in Wales during the week commencing 16 November 2026.</p>
+            </article>
+        </div>
+    </section>
+
+    <section class="section" id="who">
+        <p class="section__kicker">Who it’s for</p>
+        <h2 class="section__title">Aimed at Level 3–4 digital / networking pathways.</h2>
+        <div class="split">
+            <div>
+                <p class="section__text" style="margin-bottom: 0.85rem;">Competitors will most likely be studying an apprenticeship such as:</p>
+                <ul class="qualify-list">
+                    <li>L3 Digital Support Technician</li>
+                    <li>L3 IT Solutions Technician</li>
+                    <li>L3 Information Communications Technician</li>
+                    <li>L4 Network Engineer</li>
+                </ul>
+            </div>
+            <div>
+                <p class="section__text" style="margin-bottom: 0.85rem;">Or working towards qualifications including:</p>
+                <ul class="qualify-list">
+                    <li>HNC / HND Computer Networking</li>
+                    <li>HNC / HND Cyber Security</li>
+                </ul>
+                <p class="section__text" style="margin-top: 1.25rem; margin-bottom: 0;">
+                    Not sure you fit? Still register your interest below — tutors can advise against the current handbook and entry rules.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="resources">
+        <p class="section__kicker">Useful links</p>
+        <h2 class="section__title">Start with the official competition hub and Learning Lab.</h2>
+        <p class="section__text">Resource packs (technical handbook, past papers, National Standard of Excellence) sit on the WorldSkills UK site and Learning Lab. Links open in a new tab.</p>
+        <ul class="link-stack">
+            <li>
+                <a href="https://www.worldskillsuk.org/competitions/digital-support-security/" target="_blank" rel="noopener noreferrer">
+                    Digital Support &amp; Security competition page
+                    <span>Overview, dates, entry</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M7 17L17 7M10 7h7v7"/></svg>
+                </a>
+            </li>
+            <li>
+                <a href="https://www.worldskillsuk.org/competitions/digital-support-security/" target="_blank" rel="noopener noreferrer">
+                    Technical handbook
+                    <span>Merged competition content</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M7 17L17 7M10 7h7v7"/></svg>
+                </a>
+            </li>
+            <li>
+                <a href="https://www.worldskillsuk.org/competitions/digital-support-security/" target="_blank" rel="noopener noreferrer">
+                    Past papers (2023–2025)
+                    <span>Qualifier &amp; finals practice</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M7 17L17 7M10 7h7v7"/></svg>
+                </a>
+            </li>
+            <li>
+                <a href="https://www.worldskillsuk.org/learning-lab/" target="_blank" rel="noopener noreferrer">
+                    WorldSkills UK Learning Lab
+                    <span>Benchmarking &amp; mindset prep</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M7 17L17 7M10 7h7v7"/></svg>
+                </a>
+            </li>
+            <li>
+                <a href="https://www.worldskillsuk.org/" target="_blank" rel="noopener noreferrer">
+                    WorldSkills UK home
+                    <span>Competitions &amp; updates</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M7 17L17 7M10 7h7v7"/></svg>
+                </a>
+            </li>
+        </ul>
+    </section>
+
+    <section class="section" id="interest">
+        <p class="section__kicker">Expression of interest</p>
+        <h2 class="section__title">Tell us you want to compete — or learn more.</h2>
+        <p class="section__text">
+            Use this form to register classroom interest. It is a local placeholder for now: submissions stay on this device until a centre inbox or form endpoint is connected.
+        </p>
+
+        <div class="eoi">
+            <p class="eoi__note">
+                Placeholder fields for student name, course, and tutor awareness. Replace the success message wiring with your college form / Teams / email workflow when ready.
+            </p>
+            <form id="eoi-form" novalidate>
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="full-name">Full name</label>
+                        <input id="full-name" name="fullName" type="text" autocomplete="name" required placeholder="e.g. Alex Murphy">
+                    </div>
+                    <div class="field">
+                        <label for="email">College / personal email</label>
+                        <input id="email" name="email" type="email" autocomplete="email" required placeholder="name@college.ac.uk">
+                    </div>
+                    <div class="field">
+                        <label for="course">Course / apprenticeship</label>
+                        <input id="course" name="course" type="text" list="course-suggestions" placeholder="e.g. L3 Digital Support Technician">
+                        <datalist id="course-suggestions">
+                            <option value="L3 Digital Support Technician"></option>
+                            <option value="L3 IT Solutions Technician"></option>
+                            <option value="L3 Information Communications Technician"></option>
+                            <option value="L4 Network Engineer"></option>
+                            <option value="HNC/HND Computer Networking"></option>
+                            <option value="HNC/HND Cyber Security"></option>
+                            <option value="Other / not sure"></option>
+                        </datalist>
+                    </div>
+                    <div class="field">
+                        <label for="year-group">Year / stage</label>
+                        <select id="year-group" name="yearGroup">
+                            <option value="">Select…</option>
+                            <option>Year 1</option>
+                            <option>Year 2</option>
+                            <option>Apprentice</option>
+                            <option>Adult returner</option>
+                            <option>Other</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="interest-level">Interest level</label>
+                        <select id="interest-level" name="interestLevel" required>
+                            <option value="">Select…</option>
+                            <option value="compete">I want to compete in 2026</option>
+                            <option value="explore">Interested — want to know more</option>
+                            <option value="practice">Want practice tasks / past papers only</option>
+                            <option value="support">Happy to support teammates</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="tutor">Tutor / assessor (optional)</label>
+                        <input id="tutor" name="tutor" type="text" placeholder="Name of your course tutor">
+                        <span class="hint">Placeholder for staff follow-up</span>
+                    </div>
+                    <div class="field field--full">
+                        <label for="why">Why are you interested?</label>
+                        <textarea id="why" name="why" placeholder="Networking labs, troubleshooting, CISCO, competition experience…"></textarea>
+                    </div>
+                    <div class="field field--full">
+                        <label for="availability">Availability note (optional)</label>
+                        <input id="availability" name="availability" type="text" placeholder="e.g. Free Wednesdays / need employer release">
+                    </div>
+                </div>
+                <div class="eoi__actions">
+                    <button class="btn btn--primary" type="submit">Submit expression of interest</button>
+                    <button class="btn btn--ghost" type="button" id="eoi-reset" style="border-color: var(--line); color: var(--ink-soft);">Clear form</button>
+                    <p class="eoi__status" id="eoi-status" role="status" aria-live="polite"></p>
+                </div>
+            </form>
+
+            <div class="interest-board" aria-live="polite">
+                <h3 class="interest-board__title">Interested students (this device)</h3>
+                <p class="interest-board__empty" id="interest-empty">No expressions of interest saved yet — be the first.</p>
+                <ul class="interest-board__list" id="interest-list" hidden></ul>
+            </div>
+
+            <div class="placeholder-strip" aria-label="Centre placeholders">
+                <article>
+                    <h3>Next briefing</h3>
+                    <p>Placeholder for the classroom info session.</p>
+                    <span class="slot">Date TBC</span>
+                </article>
+                <article>
+                    <h3>Staff lead</h3>
+                    <p>Placeholder for the competition coordinator.</p>
+                    <span class="slot">Name / email TBC</span>
+                </article>
+                <article>
+                    <h3>Practice lab</h3>
+                    <p>Placeholder for booked CISCO / domain lab time.</p>
+                    <span class="slot">Room / slot TBC</span>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <div class="cta-band">
+        <div class="cta-band__inner">
+            <div>
+                <h2>Ready when registration opens.</h2>
+                <p>Registrations for the 2026 cycle open Monday 2 March 2026. Express interest now so your centre can plan support.</p>
+            </div>
+            <a class="btn btn--primary" href="https://www.worldskillsuk.org/competitions/digital-support-security/" target="_blank" rel="noopener noreferrer">
+                View WorldSkills UK page
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M7 17L17 7M10 7h7v7"/></svg>
+            </a>
+        </div>
+    </div>
+
+    <footer class="site-footer">
+        <p>WorldSkills UK · Digital Support &amp; Security explainer · OCN NI classroom resource</p>
+        <p><a href="index.html">← Back to tutorials</a></p>
+    </footer>
+
+    <script>
+        (function () {
+            var skills = document.querySelectorAll('#skill-rail li');
+            if ('IntersectionObserver' in window) {
+                var io = new IntersectionObserver(function (entries) {
+                    entries.forEach(function (entry) {
+                        if (!entry.isIntersecting) return;
+                        var items = entry.target.querySelectorAll('li');
+                        items.forEach(function (item, i) {
+                            item.style.animationDelay = (i * 0.06) + 's';
+                            item.classList.add('is-in');
+                        });
+                        io.disconnect();
+                    });
+                }, { threshold: 0.35 });
+                var rail = document.getElementById('skill-rail');
+                if (rail) io.observe(rail);
+            } else {
+                skills.forEach(function (item) { item.classList.add('is-in'); });
+            }
+
+            var STORAGE_KEY = 'wsuk-dss-eoi-v1';
+            var form = document.getElementById('eoi-form');
+            var statusEl = document.getElementById('eoi-status');
+            var listEl = document.getElementById('interest-list');
+            var emptyEl = document.getElementById('interest-empty');
+            var resetBtn = document.getElementById('eoi-reset');
+
+            function readEntries() {
+                try {
+                    var raw = localStorage.getItem(STORAGE_KEY);
+                    var parsed = raw ? JSON.parse(raw) : [];
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch (e) {
+                    return [];
+                }
+            }
+
+            function writeEntries(entries) {
+                try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+                } catch (e) {}
+            }
+
+            function interestLabel(value) {
+                var map = {
+                    compete: 'Wants to compete',
+                    explore: 'Wants to know more',
+                    practice: 'Practice only',
+                    support: 'Team support'
+                };
+                return map[value] || value || 'Interest noted';
+            }
+
+            function renderInterest() {
+                var entries = readEntries();
+                listEl.innerHTML = '';
+                if (!entries.length) {
+                    emptyEl.hidden = false;
+                    listEl.hidden = true;
+                    return;
+                }
+                emptyEl.hidden = true;
+                listEl.hidden = false;
+                entries.slice().reverse().forEach(function (entry) {
+                    var li = document.createElement('li');
+                    var left = document.createElement('div');
+                    var name = document.createElement('div');
+                    name.className = 'name';
+                    name.textContent = entry.fullName || 'Student';
+                    var detail = document.createElement('div');
+                    detail.textContent = [entry.course, interestLabel(entry.interestLevel)].filter(Boolean).join(' · ');
+                    left.appendChild(name);
+                    left.appendChild(detail);
+                    var meta = document.createElement('div');
+                    meta.className = 'meta';
+                    meta.textContent = entry.savedAt || '';
+                    li.appendChild(left);
+                    li.appendChild(meta);
+                    listEl.appendChild(li);
+                });
+            }
+
+            function setStatus(message, state) {
+                statusEl.textContent = message || '';
+                if (state) statusEl.dataset.state = state;
+                else statusEl.removeAttribute('data-state');
+            }
+
+            if (form) {
+                form.addEventListener('submit', function (event) {
+                    event.preventDefault();
+                    var data = new FormData(form);
+                    var fullName = String(data.get('fullName') || '').trim();
+                    var email = String(data.get('email') || '').trim();
+                    var interestLevel = String(data.get('interestLevel') || '').trim();
+
+                    if (!fullName || !email || !interestLevel) {
+                        setStatus('Please complete name, email, and interest level.', 'error');
+                        return;
+                    }
+
+                    var entry = {
+                        fullName: fullName,
+                        email: email,
+                        course: String(data.get('course') || '').trim(),
+                        yearGroup: String(data.get('yearGroup') || '').trim(),
+                        interestLevel: interestLevel,
+                        tutor: String(data.get('tutor') || '').trim(),
+                        why: String(data.get('why') || '').trim(),
+                        availability: String(data.get('availability') || '').trim(),
+                        savedAt: new Date().toLocaleDateString(undefined, {
+                            day: 'numeric', month: 'short', year: 'numeric'
+                        })
+                    };
+
+                    var entries = readEntries();
+                    entries.push(entry);
+                    writeEntries(entries);
+                    renderInterest();
+                    form.reset();
+                    setStatus('Interest saved on this device. Connect a centre inbox when ready.', 'ok');
+                });
+            }
+
+            if (resetBtn) {
+                resetBtn.addEventListener('click', function () {
+                    form.reset();
+                    setStatus('');
+                });
+            }
+
+            renderInterest();
+        })();
+    </script>
+</body>
+</html>
