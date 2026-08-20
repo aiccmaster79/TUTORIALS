@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strawbees and micro:bit | OCN NI Level 2</title>
+    <meta name="description" content="Explainer: brace a Strawbees structure, then clip a BBC micro:bit so sensors can drive a servo. OCN NI Level 2 physical computing.">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.0/dist/reveal.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.0/dist/theme/white.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f3f0e8;
+            --surface: rgba(255, 255, 255, 0.45);
+            --ink: #1b1a17;
+            --ink-dim: #4a463d;
+            --ink-faint: #6b665a;
+            --stroke: #1b1a17;
+            --stroke-w: 2px;
+            --grid-dot: rgba(27, 26, 23, 0.16);
+            --you: #F7931E;
+            --you-ink: #2a1400;
+            --provider: #8A2BE2;
+            --provider-ink: #ffffff;
+            --annotate: #00BDA5;
+        }
+
+        html, body { background: var(--bg); }
+
+        .reveal {
+            font-family: "Space Grotesk", sans-serif;
+            color: var(--ink);
+            font-size: 29px;
+        }
+
+        .reveal .slides { text-align: left; }
+
+        .reveal .slides section {
+            height: 100%;
+            padding: 48px 64px 72px;
+            box-sizing: border-box;
+            background-image: radial-gradient(var(--grid-dot) 1.5px, transparent 1.5px);
+            background-size: 48px 48px;
+        }
+
+        .reveal h1, .reveal h2, .reveal h3 {
+            font-family: "Space Grotesk", sans-serif;
+            font-weight: 700;
+            letter-spacing: -0.035em;
+            text-transform: none;
+            color: var(--ink);
+            margin: 0;
+        }
+
+        .reveal h1 { font-size: 96px; line-height: 0.95; }
+        .reveal h2 { font-size: 56px; line-height: 1.05; }
+        .reveal p, .reveal li { font-size: 29px; line-height: 1.45; color: var(--ink); }
+        .reveal strong { font-weight: 700; }
+
+        .mono {
+            font-family: "Space Mono", monospace;
+            font-weight: 400;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .slide-head {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 24px;
+            align-items: end;
+            padding-bottom: 16px;
+            margin-bottom: 28px;
+            border-bottom: 2px solid var(--stroke);
+        }
+
+        .slide-head .fig {
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--ink-faint);
+            text-align: right;
+            line-height: 1.4;
+        }
+
+        .lede {
+            font-size: 31px;
+            color: var(--ink-dim);
+            max-width: 42ch;
+            margin: 0 0 28px;
+        }
+
+        .fwd {
+            position: absolute;
+            left: 64px;
+            right: 64px;
+            bottom: 28px;
+            padding-top: 12px;
+            border-top: 2px solid var(--stroke);
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--ink-faint);
+        }
+
+        .title-frame {
+            position: absolute;
+            inset: 44px;
+            border: 2px solid var(--stroke);
+            pointer-events: none;
+        }
+
+        .title-inner {
+            position: relative;
+            height: 100%;
+            padding: 36px 28px 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .title-meta {
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--ink-faint);
+        }
+
+        .title-logo {
+            position: absolute;
+            top: 28px;
+            right: 28px;
+            height: 64px;
+            width: auto;
+        }
+
+        .title-block {
+            position: absolute;
+            right: 28px;
+            bottom: 28px;
+            display: grid;
+            grid-template-columns: auto auto;
+            gap: 6px 28px;
+            border-top: 2px solid var(--stroke);
+            border-left: 2px solid var(--stroke);
+            padding: 16px 0 0 20px;
+            min-width: 420px;
+        }
+
+        .title-block span {
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .title-block .k { color: var(--ink-faint); }
+        .title-block .v { color: var(--ink); }
+
+        .stack {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .layer {
+            display: grid;
+            grid-template-columns: 220px 1fr auto;
+            gap: 20px;
+            align-items: center;
+            border: 2px solid var(--stroke);
+            padding: 16px 24px;
+            background: var(--surface);
+        }
+
+        .layer.on { background: var(--you); color: var(--you-ink); }
+        .layer.on .name, .layer.on .note, .layer.on .tag { color: var(--you-ink); }
+        .layer.board { background: var(--provider); color: var(--provider-ink); }
+        .layer.board .name, .layer.board .note, .layer.board .tag { color: var(--provider-ink); }
+
+        .layer .name {
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+        }
+
+        .layer .note {
+            font-size: 26px;
+            color: var(--ink-dim);
+        }
+
+        .layer .tag {
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--ink-faint);
+            white-space: nowrap;
+        }
+
+        .two {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .three {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+
+        .cell {
+            border: 2px solid var(--stroke);
+            padding: 22px 24px;
+            background: var(--surface);
+        }
+
+        .cell h3 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .cell p, .cell li { font-size: 26px; line-height: 1.4; }
+        .cell ul { margin: 0; padding-left: 1.1em; }
+
+        .kicker {
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--annotate);
+            margin-bottom: 8px;
+        }
+
+        .obj {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .obj li {
+            display: grid;
+            grid-template-columns: 72px 1fr;
+            gap: 20px;
+            padding: 18px 0;
+            border-top: 2px solid var(--stroke);
+            font-size: 30px;
+            line-height: 1.35;
+        }
+
+        .obj .n {
+            font-family: "Space Mono", monospace;
+            font-size: 28px;
+            color: var(--you);
+            letter-spacing: 0.08em;
+        }
+
+        .obj .map {
+            display: block;
+            margin-top: 6px;
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--ink-faint);
+        }
+
+        .hook-call {
+            font-size: 44px;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            line-height: 1.2;
+            max-width: 22ch;
+            margin: 0 0 24px;
+        }
+
+        table.fault {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 24px;
+        }
+
+        table.fault th,
+        table.fault td {
+            border: 2px solid var(--stroke);
+            padding: 14px 16px;
+            vertical-align: top;
+            line-height: 1.35;
+            font-size: 24px;
+        }
+
+        table.fault th {
+            font-family: "Space Mono", monospace;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            text-align: left;
+            background: var(--ink);
+            color: var(--bg);
+            font-weight: 400;
+        }
+
+        table.fault td:first-child { font-weight: 700; width: 28%; }
+        table.fault td:last-child { width: 34%; }
+
+        ol.steps {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        ol.steps li {
+            display: grid;
+            grid-template-columns: 56px 1fr;
+            gap: 16px;
+            padding: 12px 0;
+            border-bottom: 2px solid var(--stroke);
+            font-size: 28px;
+        }
+
+        ol.steps .n {
+            font-family: "Space Mono", monospace;
+            font-size: 28px;
+            color: var(--provider);
+        }
+
+        .rule {
+            border: 2px solid var(--stroke);
+            padding: 18px 22px;
+            margin-top: 20px;
+            background: #fff;
+        }
+
+        .rule p { margin: 0; font-size: 28px; }
+        .rule .lab {
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--you);
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .take { list-style: none; margin: 0; padding: 0; }
+        .take li {
+            padding: 20px 0;
+            border-top: 2px solid var(--stroke);
+            font-size: 32px;
+            line-height: 1.35;
+        }
+
+        .swatch-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 16px;
+        }
+
+        .swatch {
+            border: 2px solid var(--stroke);
+            padding: 18px 16px;
+        }
+
+        .swatch .bar { height: 14px; margin-bottom: 12px; }
+        .swatch h3 { font-size: 28px; margin-bottom: 8px; }
+        .swatch p { font-size: 24px; margin: 0; color: var(--ink-dim); }
+
+        .close-line {
+            font-size: 52px;
+            font-weight: 700;
+            letter-spacing: -0.035em;
+            line-height: 1.15;
+            max-width: 18ch;
+            margin: 24px 0 20px;
+        }
+
+        .back-to-index {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 100;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 18px;
+            border-radius: 999px;
+            text-decoration: none;
+            color: #fff;
+            font-family: "Space Grotesk", sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            background: #1b1a17;
+            border: 2px solid #00BDA5;
+        }
+
+        .back-to-index:hover,
+        .back-to-index:focus-visible {
+            background: #00BDA5;
+            color: #04231f;
+            outline: none;
+        }
+
+        .site-credit {
+            position: fixed;
+            left: 50%;
+            bottom: 10px;
+            transform: translateX(-50%);
+            z-index: 100;
+            margin: 0;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.04em;
+            color: #f3f0e8;
+            background: #1b1a17;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .jargon-btn {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 110;
+            width: 48px;
+            height: 48px;
+            border: 2px solid var(--stroke);
+            background: var(--bg);
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .jargon-btn:focus-visible { outline: 3px solid var(--annotate); }
+
+        .jargon-panel {
+            display: none;
+            position: fixed;
+            top: 76px;
+            right: 16px;
+            z-index: 110;
+            width: 520px;
+            max-height: calc(100vh - 110px);
+            overflow: auto;
+            background: var(--bg);
+            border: 2px solid var(--stroke);
+            padding: 22px 24px;
+        }
+
+        .jargon-panel.open { display: block; }
+
+        .jargon-panel h3 {
+            font-size: 28px;
+            margin-bottom: 12px;
+        }
+
+        .jargon-panel dl { margin: 0; }
+        .jargon-panel dt {
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--provider);
+            margin-top: 12px;
+        }
+        .jargon-panel dd {
+            margin: 4px 0 0;
+            font-size: 24px;
+            line-height: 1.35;
+            color: var(--ink-dim);
+        }
+
+        .reveal .controls, .reveal .progress { color: var(--you); }
+        .reveal .slide-number {
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            color: var(--ink);
+            background: transparent;
+            right: 24px;
+            bottom: 52px;
+        }
+    </style>
+</head>
+<body>
+    <a class="back-to-index" href="index.html">← Back to index</a>
+    <p class="site-credit">Powered by A1 Agents - Designs by C4R50N</p>
+    <button class="jargon-btn" type="button" aria-expanded="false" aria-controls="jargon-panel" title="Glossary">?</button>
+    <div class="jargon-panel" id="jargon-panel" role="dialog" aria-label="Glossary">
+        <h3>Terms</h3>
+        <dl>
+            <dt>Strawbee</dt>
+            <dd>Plastic connector with a head (hole) and one or more legs that clip onto straws.</dd>
+            <dt>Click-lock</dt>
+            <dd>Groove seated in the head until it clicks. Holds, still rotates — a hinge.</dd>
+            <dt>Through-lock</dt>
+            <dd>Leg pushed fully through the head so the vertex cannot spin freely.</dd>
+            <dt>Tension lock</dt>
+            <dd>Spare head slid along the straw and snapped onto the groove so the straw cannot slip off.</dd>
+            <dt>micro:bit</dt>
+            <dd>Pocket board with buttons, LEDs, motion and temperature sensors, and edge pins.</dd>
+            <dt>Servo</dt>
+            <dd>Motor that turns to an angle you code, not a free-spinning wheel.</dd>
+            <dt>MakeCode</dt>
+            <dd>Microsoft block editor used to flash programs onto the micro:bit.</dd>
+        </dl>
+    </div>
+
+    <div class="reveal">
+        <div class="slides">
+
+            <!-- 1 Title -->
+            <section>
+                <div class="title-frame" aria-hidden="true"></div>
+                <div class="title-inner">
+                    <img class="title-logo" src="logos/src_logo.svg" alt="Southern Regional College">
+                    <p class="title-meta">#3 · Project &amp; maker · OCN NI Level 2 Diploma in Information Technology</p>
+                    <h1 style="margin-top: 48px;">Strawbees<br>and micro:bit</h1>
+                    <p class="lede" style="margin-top: 28px; max-width: 28ch;">Brace a structure you can hold. Then clip on a brain that can sense and move.</p>
+                    <div class="title-block">
+                        <span class="k">Drawing</span><span class="v">No. 03</span>
+                        <span class="k">Scale</span><span class="v">1:1 · 45 min</span>
+                        <span class="k">Sheet</span><span class="v">01 of 20</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2 Hook -->
+            <section>
+                <div class="slide-head">
+                    <h2>The grabber that worked on screen</h2>
+                    <p class="fig">Fig. 1.0 · Consequence</p>
+                </div>
+                <p class="hook-call">A perfect program cannot hold a bottle if the frame shears.</p>
+                <div class="two">
+                    <div class="cell">
+                        <p class="kicker">What happened</p>
+                        <p>Two learners flash a grabber onto a micro:bit. The servo twitch is correct. The Strawbees arm is a square with click-locks only. First movement turns the square into a diamond. The 500&nbsp;ml bottle hits the bench.</p>
+                    </div>
+                    <div class="cell">
+                        <p class="kicker">What failed</p>
+                        <p>Not the code. Not the board. The <strong>load path</strong>. A square can fold without any straw changing length. A floppy mount eats servo torque. Physical computing starts with a joint that actually holds.</p>
+                    </div>
+                </div>
+                <p class="fwd">Next · What you will be able to do</p>
+            </section>
+
+            <!-- 3 Objectives -->
+            <section>
+                <div class="slide-head">
+                    <h2>Objectives</h2>
+                    <p class="fig">Fig. 1.1 · Mapped outcomes</p>
+                </div>
+                <p class="lede">Verb-led. Checkable at the bench. Mapped to OCN NI Level 2 physical computing, testing, and iteration.</p>
+                <ol class="obj">
+                    <li><span class="n">01</span><span><strong>Name</strong> the six layers from straw to servo, and say which layer you are working on.<span class="map">Assessment fit · physical computing made real</span></span></li>
+                    <li><span class="n">02</span><span><strong>Lock</strong> a vertex so it does not spin, and brace a four-sided face into triangles.<span class="map">Assessment fit · prototype, test, iterate</span></span></li>
+                    <li><span class="n">03</span><span><strong>Map</strong> one micro:bit input to one output (button, tilt, or pin → LED or servo).<span class="map">Assessment fit · sensor to action (#28)</span></span></li>
+                    <li><span class="n">04</span><span><strong>Diagnose</strong> a build that “codes fine” but does not move the load — structure, clip, pin, or program.<span class="map">Assessment fit · testing and technician talk</span></span></li>
+                </ol>
+                <p class="fwd">Next · The stack this deck hangs on</p>
+            </section>
+
+            <!-- 4 Core concept -->
+            <section>
+                <div class="slide-head">
+                    <h2>One stack, always this order</h2>
+                    <p class="fig">Fig. 2.0 · Core concept</p>
+                </div>
+                <ol class="stack">
+                    <li class="layer"><span class="name">Act</span><span class="note">Servo, LED, pin — the thing that moves or signals</span><span class="tag">Output</span></li>
+                    <li class="layer"><span class="name">Sense</span><span class="note">Button, tilt, temperature, or a pin reading</span><span class="tag">Input</span></li>
+                    <li class="layer"><span class="name">Brain</span><span class="note">micro:bit + MakeCode program you flash</span><span class="tag">Board</span></li>
+                    <li class="layer"><span class="name">Brace</span><span class="note">Triangles, equal lengths, locks that freeze a vertex</span><span class="tag">You</span></li>
+                    <li class="layer"><span class="name">Joint</span><span class="note">Head, leg, groove — click, through, or tension</span><span class="tag">You</span></li>
+                    <li class="layer"><span class="name">Structure</span><span class="note">Straws of one colour per face; a shape that can carry load</span><span class="tag">You</span></li>
+                </ol>
+                <p class="fwd">Orange layers are hands. Purple layers are the board. Skip a layer and the robot lies.</p>
+            </section>
+
+            <!-- 5 Structure -->
+            <section>
+                <div class="slide-head">
+                    <h2>Structure — same length, same face</h2>
+                    <p class="fig">Fig. 2.1 · Structure</p>
+                </div>
+                <p class="lede">A Strawbee is a plastic “bee”: a <strong>head</strong> (the hole) and one or more <strong>legs</strong> that clip onto drinking straws. Invented in Gothenburg so a class could prototype without snapping expensive kit.</p>
+                <div class="two">
+                    <div class="cell">
+                        <p class="kicker">Building set</p>
+                        <p>Four connector families. Five straw lengths. Pull it apart and rebuild. Do not cut classroom straws unless the brief says so — lengths are designed.</p>
+                    </div>
+                    <div class="cell">
+                        <p class="kicker">STEAM starter lengths</p>
+                        <p>240&nbsp;mm blue · 205&nbsp;mm green · 112&nbsp;mm pink · 80&nbsp;mm orange · 48&nbsp;mm yellow. Mixing colours on one face is why a “square” is not square.</p>
+                    </div>
+                </div>
+                <div class="rule">
+                    <span class="lab">Technician rule</span>
+                    <p>One colour per face. If two sides of a triangle are different lengths, the third vertex will twist.</p>
+                </div>
+                <p class="fwd">Next · Which connector belongs at the vertex</p>
+            </section>
+
+            <!-- 6 Joint / connectors -->
+            <section>
+                <div class="slide-head">
+                    <h2>Joint — four connectors, four jobs</h2>
+                    <p class="fig">Fig. 2.2 · Joint</p>
+                </div>
+                <div class="swatch-row">
+                    <div class="swatch">
+                        <div class="bar" style="background:#1e6bb8;"></div>
+                        <h3>1-leg · blue</h3>
+                        <p>End cap and tension-lock spare. Finishes an edge. You will use more of these than you expect.</p>
+                    </div>
+                    <div class="swatch">
+                        <div class="bar" style="background:#F7931E;"></div>
+                        <h3>2-leg · yellow</h3>
+                        <p>In-line joint or hinge. Extends a member. Keep it a click-lock if the joint must rotate.</p>
+                    </div>
+                    <div class="swatch">
+                        <div class="bar" style="background:#00BDA5;"></div>
+                        <h3>3-leg · green</h3>
+                        <p>Corner and T-joint. Default hub for a rigid triangle and most tetrahedron vertices.</p>
+                    </div>
+                    <div class="swatch">
+                        <div class="bar" style="background:#E879A8;"></div>
+                        <h3>5-leg · pink</h3>
+                        <p>Complex hub. Geodesic points, servo mounts, many members at one vertex. Do not force it into a 3-way corner.</p>
+                    </div>
+                </div>
+                <div class="rule">
+                    <span class="lab">Listen</span>
+                    <p>The groove on the leg must seat. If you do not hear a click, it is not locked.</p>
+                </div>
+                <p class="fwd">Next · How a joint stops spinning</p>
+            </section>
+
+            <!-- 7 Brace / locks + triangles -->
+            <section>
+                <div class="slide-head">
+                    <h2>Brace — freeze the vertex, kill the shear</h2>
+                    <p class="fig">Fig. 2.3 · Brace</p>
+                </div>
+                <div class="two">
+                    <div class="cell">
+                        <h3>Four locks</h3>
+                        <ul>
+                            <li><strong>Click-lock</strong> — groove in the head; still rotates (hinge).</li>
+                            <li><strong>Through-lock</strong> — leg all the way through; vertex should not spin.</li>
+                            <li><strong>Tension lock</strong> — spare head on the straw snaps to the groove; straw cannot slip.</li>
+                            <li><strong>Friction lock</strong> — head folded onto the leg tip to hold a pose.</li>
+                        </ul>
+                    </div>
+                    <div class="cell">
+                        <h3>Square vs triangle</h3>
+                        <p>A square can shear into a diamond with every straw still the same length. A triangle cannot. A tetrahedron is four triangles in 3D — the default load-bearing unit.</p>
+                        <p style="margin-top:12px;">If it wobbles, count the triangles. A four-sided face with no diagonal is the failure waiting to happen.</p>
+                    </div>
+                </div>
+                <p class="fwd">Next · The board that sits on that frame</p>
+            </section>
+
+            <!-- 8 Brain -->
+            <section>
+                <div class="slide-head">
+                    <h2>Brain — the BBC micro:bit</h2>
+                    <p class="fig">Fig. 2.4 · Brain</p>
+                </div>
+                <p class="lede">The micro:bit is a pocket computer with sensors already on the board. Strawbees robotics kits often <strong>omit</strong> the board itself — check the bag before you promise a moving demo.</p>
+                <div class="three">
+                    <div class="cell">
+                        <p class="kicker">What it is</p>
+                        <p>Buttons A and B, a 5×5 LED matrix, accelerometer, thermometer, compass (v2 also has a microphone and speaker), and gold edge pins.</p>
+                    </div>
+                    <div class="cell">
+                        <p class="kicker">How it mounts</p>
+                        <p>Yellow clip plus black connector board. The micro:bit slides in. The clip snaps onto a Strawbees vertex that is already rigid.</p>
+                    </div>
+                    <div class="cell">
+                        <p class="kicker">How it thinks</p>
+                        <p>You write blocks in Microsoft MakeCode, download a <code style="font-family:'Space Mono',monospace;font-size:26px;">.hex</code> file, and copy it to the MICROBIT drive. Unplug, then run.</p>
+                    </div>
+                </div>
+                <p class="fwd">Next · What the board can feel</p>
+            </section>
+
+            <!-- 9 Sense -->
+            <section>
+                <div class="slide-head">
+                    <h2>Sense — pick one input</h2>
+                    <p class="fig">Fig. 2.5 · Sense</p>
+                </div>
+                <div class="three">
+                    <div class="cell">
+                        <h3>Buttons</h3>
+                        <p>A, B, or A+B. Best first test: “does the program reach the board at all?” If a button does nothing, do not blame the servo yet.</p>
+                    </div>
+                    <div class="cell">
+                        <h3>Motion</h3>
+                        <p>Shake, tilt, or free-fall from the accelerometer. Use this when the structure itself is the sensor — a stand that must notice a knock.</p>
+                    </div>
+                    <div class="cell">
+                        <h3>Pins and heat</h3>
+                        <p>Edge pins 0, 1, 2 for extra sensors or a touch circuit. On-board temperature for a “too warm” warning. One input per first program.</p>
+                    </div>
+                </div>
+                <div class="rule">
+                    <span class="lab">Pattern</span>
+                    <p>Sensor → decision → action. If you wire three sensors on day one, you cannot tell which one failed.</p>
+                </div>
+                <p class="fwd">Next · What the board can do</p>
+            </section>
+
+            <!-- 10 Act -->
+            <section>
+                <div class="slide-head">
+                    <h2>Act — LED, pin, servo</h2>
+                    <p class="fig">Fig. 2.6 · Act</p>
+                </div>
+                <div class="three">
+                    <div class="cell">
+                        <p class="kicker">LED matrix</p>
+                        <h3>Prove the flash</h3>
+                        <p>Show an icon or scroll text first. If the LEDs never change, the .hex never landed. Do not debug a servo until this works.</p>
+                    </div>
+                    <div class="cell">
+                        <p class="kicker">Pins</p>
+                        <h3>Digital out</h3>
+                        <p>Pins can drive simple outputs. Know which pin the Strawbees connector board actually uses before you rewrite the program.</p>
+                    </div>
+                    <div class="cell">
+                        <p class="kicker">Servo</p>
+                        <h3>Angle, not spin</h3>
+                        <p>A servo turns to an angle you code (often 0–180°). Mount the horn on a linkage. A floppy arm wastes the torque.</p>
+                    </div>
+                </div>
+                <p class="fwd">Next · How the kit physically joins</p>
+            </section>
+
+            <!-- 11 Clip hardware -->
+            <section>
+                <div class="slide-head">
+                    <h2>Clip the brain onto a rigid vertex</h2>
+                    <p class="fig">Fig. 3.0 · Hardware join</p>
+                </div>
+                <ol class="steps">
+                    <li><span class="n">01</span><span>Stand the frame. Push the top. If it shears, stop. Add a diagonal. Through-lock the mount vertex.</span></li>
+                    <li><span class="n">02</span><span>Fit the servo mount so the horn pushes a linkage, not empty air. Brace the mount with triangles.</span></li>
+                    <li><span class="n">03</span><span>Slide the micro:bit into the yellow clip. Snap the clip onto the black connector board, then onto the vertex.</span></li>
+                    <li><span class="n">04</span><span>Keep USB and battery cables from pulling the joint. Strain on a click-lock is a fault, not a feature.</span></li>
+                </ol>
+                <div class="rule">
+                    <span class="lab">Order</span>
+                    <p>Structure first. Electronics second. Code cannot unsquare a square.</p>
+                </div>
+                <p class="fwd">Next · The blocks that drive the servo</p>
+            </section>
+
+            <!-- 12 MakeCode -->
+            <section>
+                <div class="slide-head">
+                    <h2>MakeCode — Strawbees extension</h2>
+                    <p class="fig">Fig. 3.1 · Program</p>
+                </div>
+                <ol class="steps">
+                    <li><span class="n">01</span><span>Open makecode.microbit.org. New project. Name it after the machine, not “untitled”.</span></li>
+                    <li><span class="n">02</span><span>Extensions → search <strong>Strawbees Robotic Inventions</strong>. Add it. Servo blocks appear.</span></li>
+                    <li><span class="n">03</span><span>On start: show an icon. On button A: set servo to one angle. On button B: set the other angle.</span></li>
+                    <li><span class="n">04</span><span>Download the .hex. Copy to MICROBIT. Eject. Press A on the board, not only in the simulator.</span></li>
+                </ol>
+                <div class="rule">
+                    <span class="lab">Simulator lie</span>
+                    <p>The on-screen micro:bit has no Strawbees arm. A green simulator is not a passed load test.</p>
+                </div>
+                <p class="fwd">Next · One input, one output</p>
+            </section>
+
+            <!-- 13 Sensor to action -->
+            <section>
+                <div class="slide-head">
+                    <h2>Sensor to action — write it as a sentence</h2>
+                    <p class="fig">Fig. 3.2 · Pattern</p>
+                </div>
+                <p class="lede">If you cannot say the sentence, you are not ready to drag blocks.</p>
+                <div class="two">
+                    <div class="cell">
+                        <p class="kicker">Template</p>
+                        <p style="font-size:32px;font-weight:700;letter-spacing:-0.03em;">When <em style="font-style:normal;color:var(--provider);">this input</em> happens, the machine <em style="font-style:normal;color:var(--you);">does that output</em>.</p>
+                    </div>
+                    <div class="cell">
+                        <p class="kicker">Classroom examples</p>
+                        <ul>
+                            <li>When button A is pressed, the grabber closes to 40°.</li>
+                            <li>When the stand is shaken, the LEDs show a cross.</li>
+                            <li>When temperature &gt; 28°C, the servo lifts a flag.</li>
+                        </ul>
+                    </div>
+                </div>
+                <p class="fwd">Next · A named build you can copy</p>
+            </section>
+
+            <!-- 14 Worked example -->
+            <section>
+                <div class="slide-head">
+                    <h2>Worked example — Lab Bottle Sentinel</h2>
+                    <p class="fig">Fig. 4.0 · Named brief</p>
+                </div>
+                <p class="lede">Pairs. Classroom kit. Same 500&nbsp;ml bottle used in Strawbees tower challenges.</p>
+                <div class="two">
+                    <div class="cell">
+                        <p class="kicker">Must</p>
+                        <ul>
+                            <li>Free-standing Strawbees stand, one colour per face.</li>
+                            <li>Holds a 500&nbsp;ml bottle for 10 seconds with no hands.</li>
+                            <li>micro:bit clipped to a through-locked vertex.</li>
+                            <li>Sentence: when shaken, show a cross; when A is pressed, show a tick (prove flash).</li>
+                        </ul>
+                    </div>
+                    <div class="cell">
+                        <p class="kicker">Stretch</p>
+                        <ul>
+                            <li>Servo flag that rises on shake.</li>
+                            <li>At least one tension lock on the bottle cradle.</li>
+                            <li>Diagonal brace on every four-sided face.</li>
+                        </ul>
+                    </div>
+                </div>
+                <p class="fwd">Next · Build order for that brief</p>
+            </section>
+
+            <!-- 15 Worked example steps -->
+            <section>
+                <div class="slide-head">
+                    <h2>Lab Bottle Sentinel — build order</h2>
+                    <p class="fig">Fig. 4.1 · Sequence</p>
+                </div>
+                <ol class="steps">
+                    <li><span class="n">01</span><span>Pick one straw length for the cradle square. Add one diagonal. Through-lock the four corners.</span></li>
+                    <li><span class="n">02</span><span>Raise it on a tetrahedron or braced legs. Push the top. If it shears, add triangles before any electronics.</span></li>
+                    <li><span class="n">03</span><span>Tension-lock the bottle ring so the straw cannot slip when the bottle is placed.</span></li>
+                    <li><span class="n">04</span><span>Clip the micro:bit. Flash “A → tick / shake → cross”. Prove LEDs on the real board.</span></li>
+                    <li><span class="n">05</span><span>Only then add a servo flag. If the flag twitches but the stand leans, go back to layer Brace.</span></li>
+                </ol>
+                <p class="fwd">Next · What this kit will not do</p>
+            </section>
+
+            <!-- 16 Trade-offs -->
+            <section>
+                <div class="slide-head">
+                    <h2>Trade-offs and limits</h2>
+                    <p class="fig">Fig. 5.0 · Limits</p>
+                </div>
+                <div class="two">
+                    <div class="cell">
+                        <h3>Strawbees is a sketch</h3>
+                        <p>Fast to rebuild, weak against crush and weather. It is the cheap prototype before VEX or a 3D-printed part. Do not treat a straw tower as a finished product.</p>
+                    </div>
+                    <div class="cell">
+                        <h3>micro:bit is a classroom brain</h3>
+                        <p>Great sensors, limited torque and pin current. One small servo is the design. A heavy grabber needs a braced mount and realistic angles — not “180° because the block allows it”.</p>
+                    </div>
+                    <div class="cell">
+                        <h3>Click-lock vs through-lock</h3>
+                        <p>Hinges need rotation. Towers need freeze. Using the same lock everywhere is how walkers seize or stands collapse.</p>
+                    </div>
+                    <div class="cell">
+                        <h3>USB vs battery</h3>
+                        <p>Flashing needs USB. A demo on the floor needs a battery pack that does not yank the clip. Cable strain is a structural load.</p>
+                    </div>
+                </div>
+                <p class="fwd">Next · Symptom → cause → fix</p>
+            </section>
+
+            <!-- 17 Faults -->
+            <section>
+                <div class="slide-head">
+                    <h2>Common faults</h2>
+                    <p class="fig">Fig. 5.1 · Helpdesk script</p>
+                </div>
+                <table class="fault">
+                    <thead>
+                        <tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Joint spins under a light push</td>
+                            <td>Groove half-seated, or click-lock where you needed through-lock</td>
+                            <td>Unclick, listen for the click, push the leg through the head</td>
+                        </tr>
+                        <tr>
+                            <td>Stand leans; “square” is a diamond</td>
+                            <td>Mixed straw lengths, or no diagonal</td>
+                            <td>One colour per face; add a brace to make two triangles</td>
+                        </tr>
+                        <tr>
+                            <td>LEDs never change after download</td>
+                            <td>.hex not copied, or still running the old program</td>
+                            <td>Check MICROBIT drive; reset; prove with button A → icon</td>
+                        </tr>
+                        <tr>
+                            <td>Servo twitches, arm barely moves</td>
+                            <td>Floppy mount eating torque, or wrong pin / no extension</td>
+                            <td>Brace the mount; confirm Strawbees blocks and horn screw</td>
+                        </tr>
+                        <tr>
+                            <td>Program works in the simulator only</td>
+                            <td>Never flashed, or clip not seated on the connector board</td>
+                            <td>Copy .hex; reseat the yellow clip; test on the real board</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="fwd">Next · How you know it is done</p>
+            </section>
+
+            <!-- 18 Test -->
+            <section>
+                <div class="slide-head">
+                    <h2>Test like a technician</h2>
+                    <p class="fig">Fig. 5.2 · Pass criteria</p>
+                </div>
+                <ol class="steps">
+                    <li><span class="n">01</span><span><strong>Hands off.</strong> The stand holds the bottle for 10 seconds. If a hand is still on it, the structure has not passed.</span></li>
+                    <li><span class="n">02</span><span><strong>Push test.</strong> Side load at the top. Count triangles on any face that moves.</span></li>
+                    <li><span class="n">03</span><span><strong>Board test.</strong> Button A shows the tick on the real LEDs. Shake shows the cross.</span></li>
+                    <li><span class="n">04</span><span><strong>Name the layer.</strong> When it fails, say Structure, Joint, Brace, Brain, Sense, or Act — not “it’s broken”.</span></li>
+                </ol>
+                <div class="rule">
+                    <span class="lab">Evidence</span>
+                    <p>A photo of the standing bottle plus the sentence you coded is Level 2 evidence. A simulator screenshot is not.</p>
+                </div>
+                <p class="fwd">Next · Four things to keep</p>
+            </section>
+
+            <!-- 19 Takeaways -->
+            <section>
+                <div class="slide-head">
+                    <h2>Key takeaways</h2>
+                    <p class="fig">Fig. 6.0 · Keep these</p>
+                </div>
+                <ol class="take">
+                    <li>01 · Rigid unit first. Repeat triangles. Code sits on a frame that already stands.</li>
+                    <li>02 · Same pieces, different push: click for hinges, through-lock to freeze, tension so straws cannot slip.</li>
+                    <li>03 · One input, one output, said as a sentence, then flashed to the real micro:bit.</li>
+                    <li>04 · Diagnose by layer. A green simulator does not hold a bottle.</li>
+                </ol>
+                <p class="fwd">Next · What to do at the bench</p>
+            </section>
+
+            <!-- 20 Close -->
+            <section>
+                <div class="slide-head">
+                    <h2>Close</h2>
+                    <p class="fig">Fig. 6.1 · Instruction</p>
+                </div>
+                <p class="close-line">Build the Lab Bottle Sentinel before you add a second sensor.</p>
+                <p class="lede">Pairs: equal-length cradle, one diagonal, through-locked clip vertex, A → tick and shake → cross on the physical board. Photograph the standing bottle. Then — and only then — ask for a servo flag.</p>
+                <div class="rule">
+                    <span class="lab">No course PDF in this tutorials repo</span>
+                    <p>Content is written against OCN NI Level 2 Diploma in Information Technology maker notes in this library (physical computing, sensor-to-action, test and iterate) and the Strawbees + micro:bit kit already used on campus.</p>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.0/dist/reveal.js"></script>
+    <script>
+        Reveal.initialize({
+            width: 1920,
+            height: 1080,
+            margin: 0.04,
+            hash: true,
+            slideNumber: "c/t",
+            transition: "fade",
+            transitionSpeed: "fast",
+            controls: true,
+            progress: true,
+            keyboard: true
+        });
+
+        (function () {
+            var btn = document.querySelector(".jargon-btn");
+            var panel = document.getElementById("jargon-panel");
+            btn.addEventListener("click", function () {
+                var open = panel.classList.toggle("open");
+                btn.setAttribute("aria-expanded", String(open));
+            });
+        })();
+    </script>
+</body>
+</html>
