@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robotic Crane (micro:bit) | OCN NI Level 2</title>
+    <meta name="description" content="Explainer: first crane movement is never perfect. Change the motor, the code, or the mechanism. Strawbees STEAM Classroom Robotics with a BBC micro:bit.">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.0/dist/reveal.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.0/dist/theme/white.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f3f0e8;
+            --surface: rgba(255, 255, 255, 0.45);
+            --ink: #1b1a17;
+            --ink-dim: #4a463d;
+            --ink-faint: #6b665a;
+            --stroke: #1b1a17;
+            --stroke-w: 2px;
+            --grid-dot: rgba(27, 26, 23, 0.16);
+            --you: #F7931E;
+            --you-ink: #2a1400;
+            --provider: #8A2BE2;
+            --provider-ink: #ffffff;
+            --annotate: #00BDA5;
+        }
+
+        html, body { background: var(--bg); }
+
+        .reveal {
+            font-family: "Space Grotesk", sans-serif;
+            color: var(--ink);
+            font-size: 29px;
+        }
+
+        .reveal .slides { text-align: left; }
+
+        .reveal .slides section {
+            height: 100%;
+            padding: 48px 64px 72px;
+            box-sizing: border-box;
+            background-image: radial-gradient(var(--grid-dot) 1.5px, transparent 1.5px);
+            background-size: 48px 48px;
+        }
+
+        .reveal h1, .reveal h2, .reveal h3 {
+            font-family: "Space Grotesk", sans-serif;
+            font-weight: 700;
+            letter-spacing: -0.035em;
+            text-transform: none;
+            color: var(--ink);
+            margin: 0;
+        }
+
+        .reveal h1 { font-size: 96px; line-height: 0.95; }
+        .reveal h2 { font-size: 56px; line-height: 1.05; }
+        .reveal p, .reveal li { font-size: 29px; line-height: 1.45; color: var(--ink); }
+        .reveal strong { font-weight: 700; }
+
+        .mono {
+            font-family: "Space Mono", monospace;
+            font-weight: 400;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .slide-head {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 24px;
+            align-items: end;
+            padding-bottom: 16px;
+            margin-bottom: 28px;
+            border-bottom: 2px solid var(--stroke);
+        }
+
+        .slide-head .fig {
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--ink-faint);
+            text-align: right;
+            line-height: 1.4;
+        }
+
+        .lede {
+            font-size: 31px;
+            color: var(--ink-dim);
+            max-width: 42ch;
+            margin: 0 0 28px;
+        }
+
+        .fwd {
+            position: absolute;
+            left: 64px;
+            right: 64px;
+            bottom: 28px;
+            padding-top: 12px;
+            border-top: 2px solid var(--stroke);
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--ink-faint);
+        }
+
+        .title-frame {
+            position: absolute;
+            inset: 44px;
+            border: 2px solid var(--stroke);
+            pointer-events: none;
+        }
+
+        .title-inner {
+            position: relative;
+            height: 100%;
+            padding: 36px 28px 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .title-meta {
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--ink-faint);
+        }
+
+        .title-logo {
+            position: absolute;
+            top: 28px;
+            right: 28px;
+            height: 64px;
+            width: auto;
+        }
+
+        .title-block {
+            position: absolute;
+            right: 28px;
+            bottom: 28px;
+            display: grid;
+            grid-template-columns: auto auto;
+            gap: 6px 28px;
+            border-top: 2px solid var(--stroke);
+            border-left: 2px solid var(--stroke);
+            padding: 16px 0 0 20px;
+            min-width: 420px;
+        }
+
+        .title-block span {
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .title-block .k { color: var(--ink-faint); }
+        .title-block .v { color: var(--ink); }
+
+        .stack {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .layer {
+            display: grid;
+            grid-template-columns: 220px 1fr auto;
+            gap: 20px;
+            align-items: center;
+            border: 2px solid var(--stroke);
+            padding: 16px 24px;
+            background: var(--surface);
+        }
+
+        .layer.on { background: var(--you); color: var(--you-ink); }
+        .layer.on .name, .layer.on .note, .layer.on .tag { color: var(--you-ink); }
+        .layer.board { background: var(--provider); color: var(--provider-ink); }
+        .layer.board .name, .layer.board .note, .layer.board .tag { color: var(--provider-ink); }
+
+        .layer .name {
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+        }
+
+        .layer .note {
+            font-size: 26px;
+            color: var(--ink-dim);
+        }
+
+        .layer .tag {
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--ink-faint);
+            white-space: nowrap;
+        }
+
+        .two {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .three {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+
+        .cell {
+            border: 2px solid var(--stroke);
+            padding: 22px 24px;
+            background: var(--surface);
+        }
+
+        .cell h3 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .cell p, .cell li { font-size: 26px; line-height: 1.4; }
+        .cell ul { margin: 0; padding-left: 1.1em; }
+
+        .kicker {
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--annotate);
+            margin-bottom: 8px;
+        }
+
+        .obj {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .obj li {
+            display: grid;
+            grid-template-columns: 72px 1fr;
+            gap: 20px;
+            padding: 18px 0;
+            border-top: 2px solid var(--stroke);
+            font-size: 30px;
+            line-height: 1.35;
+        }
+
+        .obj .n {
+            font-family: "Space Mono", monospace;
+            font-size: 28px;
+            color: var(--you);
+            letter-spacing: 0.08em;
+        }
+
+        .obj .map {
+            display: block;
+            margin-top: 6px;
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--ink-faint);
+        }
+
+        .hook-call {
+            font-size: 44px;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            line-height: 1.2;
+            max-width: 22ch;
+            margin: 0 0 24px;
+        }
+
+        table.fault {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 24px;
+        }
+
+        table.fault th,
+        table.fault td {
+            border: 2px solid var(--stroke);
+            padding: 14px 16px;
+            vertical-align: top;
+            line-height: 1.35;
+            font-size: 24px;
+        }
+
+        table.fault th {
+            font-family: "Space Mono", monospace;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            text-align: left;
+            background: var(--ink);
+            color: var(--bg);
+            font-weight: 400;
+        }
+
+        table.fault td:first-child { font-weight: 700; width: 28%; }
+        table.fault td:last-child { width: 34%; }
+
+        ol.steps {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        ol.steps li {
+            display: grid;
+            grid-template-columns: 56px 1fr;
+            gap: 16px;
+            padding: 12px 0;
+            border-bottom: 2px solid var(--stroke);
+            font-size: 28px;
+        }
+
+        ol.steps .n {
+            font-family: "Space Mono", monospace;
+            font-size: 28px;
+            color: var(--provider);
+        }
+
+        .rule {
+            border: 2px solid var(--stroke);
+            padding: 18px 22px;
+            margin-top: 20px;
+            background: #fff;
+        }
+
+        .rule p { margin: 0; font-size: 28px; }
+        .rule .lab {
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--you);
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .take { list-style: none; margin: 0; padding: 0; }
+        .take li {
+            padding: 20px 0;
+            border-top: 2px solid var(--stroke);
+            font-size: 32px;
+            line-height: 1.35;
+        }
+
+        .close-line {
+            font-size: 52px;
+            font-weight: 700;
+            letter-spacing: -0.035em;
+            line-height: 1.15;
+            max-width: 18ch;
+            margin: 24px 0 20px;
+        }
+
+        .back-to-index {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 100;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 18px;
+            border-radius: 999px;
+            text-decoration: none;
+            color: #fff;
+            font-family: "Space Grotesk", sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            background: #1b1a17;
+            border: 2px solid #00BDA5;
+        }
+
+        .back-to-index:hover,
+        .back-to-index:focus-visible {
+            background: #00BDA5;
+            color: #04231f;
+            outline: none;
+        }
+
+        .site-credit {
+            position: fixed;
+            left: 50%;
+            bottom: 10px;
+            transform: translateX(-50%);
+            z-index: 100;
+            margin: 0;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.04em;
+            color: #f3f0e8;
+            background: #1b1a17;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .jargon-btn {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 110;
+            width: 48px;
+            height: 48px;
+            border: 2px solid var(--stroke);
+            background: var(--bg);
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .jargon-btn:focus-visible { outline: 3px solid var(--annotate); }
+
+        .jargon-panel {
+            display: none;
+            position: fixed;
+            top: 76px;
+            right: 16px;
+            z-index: 110;
+            width: 520px;
+            max-height: calc(100vh - 110px);
+            overflow: auto;
+            background: var(--bg);
+            border: 2px solid var(--stroke);
+            padding: 22px 24px;
+        }
+
+        .jargon-panel.open { display: block; }
+
+        .jargon-panel h3 {
+            font-size: 28px;
+            margin-bottom: 12px;
+        }
+
+        .jargon-panel dl { margin: 0; }
+        .jargon-panel dt {
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--provider);
+            margin-top: 12px;
+        }
+        .jargon-panel dd {
+            margin: 4px 0 0;
+            font-size: 24px;
+            line-height: 1.35;
+            color: var(--ink-dim);
+        }
+
+        .reveal .controls, .reveal .progress { color: var(--you); }
+        .reveal .slide-number {
+            font-family: "Space Mono", monospace;
+            font-size: 24px;
+            color: var(--ink);
+            background: transparent;
+            right: 24px;
+            bottom: 52px;
+        }
+    </style>
+</head>
+<body>
+    <a class="back-to-index" href="index.html">← Back to index</a>
+    <p class="site-credit">Powered by A1 Agents - Designs by C4R50N</p>
+    <button class="jargon-btn" type="button" aria-expanded="false" aria-controls="jargon-panel" title="Glossary">?</button>
+    <div class="jargon-panel" id="jargon-panel" role="dialog" aria-label="Glossary">
+        <h3>Terms</h3>
+        <dl>
+            <dt>Robotics board</dt>
+            <dd>Strawbees Robotic Inventions board that clips to the micro:bit and drives the servo. Needs three AAA cells and a power switch.</dd>
+            <dt>Servo</dt>
+            <dd>Motor that turns to a coded position (0–100% in Strawbees blocks), not a free-spinning wheel.</dd>
+            <dt>Zero</dt>
+            <dd>Known start: flash “set servo A to 0%”, then nudge the horn. If one side will not budge, you are at 0%.</dd>
+            <dt>Linkage</dt>
+            <dd>Beams and joints that turn a servo push into boom motion. On this crane: green-beam joint to the yellow straw on the servo.</dd>
+            <dt>Friction joint</dt>
+            <dd>Joint held by tightness rather than a freeze lock. Secure the back or it walks under load.</dd>
+            <dt>Position range</dt>
+            <dd>The two numbers that move this crane without binding. They belong to this linkage, this slide, this boom — not to another table.</dd>
+            <dt>MakeCode</dt>
+            <dd>Microsoft block editor at makecode.microbit.org. Add the Strawbees Robotic Inventions extension before servo blocks appear.</dd>
+        </dl>
+    </div>
+
+    <div class="reveal">
+        <div class="slides">
+
+            <!-- 1 Title -->
+            <section>
+                <div class="title-frame" aria-hidden="true"></div>
+                <div class="title-inner">
+                    <img class="title-logo" src="logos/src_logo.svg" alt="Southern Regional College">
+                    <p class="title-meta">#4 · Strawbees STEAM Classroom Robotics · OCN NI Level 2 Diploma in Information Technology</p>
+                    <h1 style="margin-top: 48px;">Robotic Crane</h1>
+                    <p class="lede" style="margin-top: 28px; max-width: 28ch;">micro:bit, a servo, and levers. The first movement will not match the picture in your head.</p>
+                    <div class="title-block">
+                        <span class="k">Drawing</span><span class="v">No. 04</span>
+                        <span class="k">Scale</span><span class="v">1:1 · 50 min</span>
+                        <span class="k">Sheet</span><span class="v">01 of 12</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2 Hook -->
+            <section>
+                <div class="slide-head">
+                    <h2>The lift that coded fine</h2>
+                    <p class="fig">Fig. 1.0 · Consequence</p>
+                </div>
+                <p class="hook-call">A servo that hits 80% is useless if the yellow straw slips first.</p>
+                <div class="two">
+                    <div class="cell">
+                        <p class="kicker">What happened</p>
+                        <p>A pair flashes button A → 80%. The horn twitches. The boom barely nods. They keep editing percentages. The recycling-sort demo still drops the load.</p>
+                    </div>
+                    <div class="cell">
+                        <p class="kicker">What failed</p>
+                        <p>Not the number. The <strong>linkage</strong> from the green beam to the yellow straw was a friction fit that walked off. Code cannot lock a joint. First crane movement is a test, not a pass.</p>
+                    </div>
+                </div>
+                <p class="fwd">Next · What you will be able to do</p>
+            </section>
+
+            <!-- 3 Objectives -->
+            <section>
+                <div class="slide-head">
+                    <h2>Objectives</h2>
+                    <p class="fig">Fig. 1.1 · Mapped outcomes</p>
+                </div>
+                <p class="lede">Verb-led. Checkable at the bench. Mapped to OCN NI Level 2 physical computing, testing, and iteration.</p>
+                <ol class="obj">
+                    <li><span class="n">01</span><span><strong>Name</strong> the three ways to change automated movement: motor, code, and mechanism.<span class="map">Assessment fit · simple machines + physical computing</span></span></li>
+                    <li><span class="n">02</span><span><strong>Zero</strong> the servo at 0%, then find the position range on this crane before writing button control.<span class="map">Assessment fit · sensor to action (#28)</span></span></li>
+                    <li><span class="n">03</span><span><strong>Connect</strong> a linkage so a servo push becomes a boom lift, then slide the motor to change throw.<span class="map">Assessment fit · prototype, test, iterate</span></span></li>
+                    <li><span class="n">04</span><span><strong>Diagnose</strong> a crane that twitches but does not lift — wire, zero, range, slip, or slide.<span class="map">Assessment fit · testing and technician talk</span></span></li>
+                </ol>
+                <p class="fwd">Next · The ladder this deck hangs on</p>
+            </section>
+
+            <!-- 4 Core concept -->
+            <section>
+                <div class="slide-head">
+                    <h2>Three ways to change the lift</h2>
+                    <p class="fig">Fig. 2.0 · Core concept</p>
+                </div>
+                <ol class="stack">
+                    <li class="layer board"><span class="name">Code</span><span class="note">MakeCode: 0%, a written range, then buttons or a position variable</span><span class="tag">Board</span></li>
+                    <li class="layer on"><span class="name">Motor</span><span class="note">Servo on the Robotics board — zero it, then slide it along the straw</span><span class="tag">You</span></li>
+                    <li class="layer on"><span class="name">Mechanism</span><span class="note">Prism, levers, friction joint, hook, linkage from green beam to yellow straw</span><span class="tag">You</span></li>
+                </ol>
+                <p class="fwd">Orange is hands. Purple is the program. Change one layer, then test. Changing all three at once hides the fault.</p>
+            </section>
+
+            <!-- 5 Mechanism -->
+            <section>
+                <div class="slide-head">
+                    <h2>Mechanism — levers, not magic</h2>
+                    <p class="fig">Fig. 2.1 · Mechanism</p>
+                </div>
+                <p class="lede">The crane is a mechanical system. A servo angle only becomes a lift if joints and a linkage carry the push to the boom.</p>
+                <div class="three">
+                    <div class="cell">
+                        <p class="kicker">Stand</p>
+                        <h3>Prism on a trapezoid</h3>
+                        <p>Trapezoid base, then beams that make a prism. Click 1-leg connectors one at a time. A rocking tower eats every later test.</p>
+                    </div>
+                    <div class="cell">
+                        <p class="kicker">Boom</p>
+                        <h3>Joints that must move</h3>
+                        <p>Moving joints for the top, then the boom, then a hook from a joint. A friction joint holds pose — secure the back or it walks.</p>
+                    </div>
+                    <div class="cell">
+                        <p class="kicker">Drive</p>
+                        <h3>The linkage sentence</h3>
+                        <p>Connect the joint on the green beam to the yellow straw on the servo. That path is the machine. Miss it and the horn just waves.</p>
+                    </div>
+                </div>
+                <p class="fwd">Next · The motor that pushes that path</p>
+            </section>
+
+            <!-- 6 Motor -->
+            <section>
+                <div class="slide-head">
+                    <h2>Motor — known zero, then a beam</h2>
+                    <p class="fig">Fig. 2.2 · Motor</p>
+                </div>
+                <ol class="steps">
+                    <li><span class="n">01</span><span>Clip micro:bit, Robotics board, and servo. Align the <strong>black wire with the white arrow</strong>. Three AAA cells. Power on.</span></li>
+                    <li><span class="n">02</span><span>USB to the computer. New project at makecode.microbit.org. Add the Strawbees Robotic Inventions extension. Pair the board.</span></li>
+                    <li><span class="n">03</span><span>Flash a forever loop: set servo A position to <strong>0%</strong>. After upload, nudge the horn. If one side will not budge, you are at zero.</span></li>
+                    <li><span class="n">04</span><span>Only then clip a yellow straw beam to the horn. Sliding the servo along that straw later changes how hard the linkage pushes.</span></li>
+                </ol>
+                <div class="rule">
+                    <span class="lab">Technician rule</span>
+                    <p>Do not hunt for a range until you have a known 0%. A “stuck” horn after this program is often the pass, not a fault.</p>
+                </div>
+                <p class="fwd">Next · Numbers that belong to this crane</p>
+            </section>
+
+            <!-- 7 Code -->
+            <section>
+                <div class="slide-head">
+                    <h2>Code — find this crane’s range</h2>
+                    <p class="fig">Fig. 2.3 · Code</p>
+                </div>
+                <div class="two">
+                    <div class="cell">
+                        <p class="kicker">The job</p>
+                        <p>Experiment with servo positions until the boom travels without binding. Download several times. Write the two numbers on the bench. They belong to <strong>this</strong> linkage, this slide, this boom length.</p>
+                    </div>
+                    <div class="cell">
+                        <p class="kicker">Then, and only then</p>
+                        <p>Buttons A and B jump to those two numbers. Later, a <strong>position</strong> variable creeps: change by +1 and −1, clamped to the range. A bigger change makes a faster crane.</p>
+                    </div>
+                </div>
+                <div class="rule">
+                    <span class="lab">Simulator lie</span>
+                    <p>The on-screen micro:bit has no boom. Borrowed percentages from another table will bind this one. A green simulator is not a lift.</p>
+                </div>
+                <p class="fwd">Next · A named build you can copy</p>
+            </section>
+
+            <!-- 8 Worked example -->
+            <section>
+                <div class="slide-head">
+                    <h2>Worked example — Recycling Bay Crane</h2>
+                    <p class="fig">Fig. 3.0 · Named brief</p>
+                </div>
+                <p class="lede">Pairs. Strawbees STEAM Classroom Robotics — micro:bit. The load is a light classroom object, not a skip.</p>
+                <div class="two">
+                    <div class="cell">
+                        <p class="kicker">Must</p>
+                        <ul>
+                            <li>Free-standing prism; boom with a hook.</li>
+                            <li>Robotics board powered; black wire on the white arrow.</li>
+                            <li>Servo zeroed at 0%; two range numbers written down.</li>
+                            <li>A and B stay inside that range; hook lifts a light load once.</li>
+                        </ul>
+                    </div>
+                    <div class="cell">
+                        <p class="kicker">Build order</p>
+                        <ul>
+                            <li>Prism → clip board and servo → USB, extension, pair, power.</li>
+                            <li>Zero → yellow beam on horn → joints, boom, friction joint, hook.</li>
+                            <li>Linkage to yellow straw → find range → buttons → optional ±1 variable.</li>
+                            <li>Slide the servo; lock a slipping straw with a 1-leg connector.</li>
+                        </ul>
+                    </div>
+                </div>
+                <p class="fwd">Next · What this kit will not hide</p>
+            </section>
+
+            <!-- 9 Trade-offs -->
+            <section>
+                <div class="slide-head">
+                    <h2>Trade-offs and limits</h2>
+                    <p class="fig">Fig. 4.0 · Limits</p>
+                </div>
+                <div class="two">
+                    <div class="cell">
+                        <h3>Jump vs creep</h3>
+                        <p>Buttons to two endpoints are easy to demo. A position variable (±1) is slower and safer for a load. Raise the change amount only after the range is proven.</p>
+                    </div>
+                    <div class="cell">
+                        <h3>Code vs slide</h3>
+                        <p>New percentages and sliding the servo both change throw. Sliding is mechanical advantage. Do not retune both at once or you cannot say which fix worked.</p>
+                    </div>
+                    <div class="cell">
+                        <h3>Friction vs screws</h3>
+                        <p>A friction joint is fast to pose. Under a hook load it walks. Tiny screws hold a falling servo horn. Speed of build is not the same as a pass.</p>
+                    </div>
+                    <div class="cell">
+                        <h3>Straw lengths</h3>
+                        <p>Swap lengths on the boom or the moving lever and the same code will over-travel or under-lift. Range numbers die when the geometry changes.</p>
+                    </div>
+                </div>
+                <p class="fwd">Next · Symptom → cause → fix</p>
+            </section>
+
+            <!-- 10 Common faults -->
+            <section>
+                <div class="slide-head">
+                    <h2>Common faults</h2>
+                    <p class="fig">Fig. 4.1 · Helpdesk script</p>
+                </div>
+                <table class="fault">
+                    <thead>
+                        <tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Yellow straw slips on the servo</td>
+                            <td>Friction only; no lock on the member</td>
+                            <td>Click a 1-leg connector over the straw</td>
+                        </tr>
+                        <tr>
+                            <td>Horn falls off the linkage</td>
+                            <td>Arm seated on friction, not fastened</td>
+                            <td>Use the tiny screws; re-zero if you moved the horn</td>
+                        </tr>
+                        <tr>
+                            <td>Horn will not nudge after 0%</td>
+                            <td>Servo is at end-stop (often a pass) or the .hex never landed</td>
+                            <td>Confirm upload; if one side is locked, zero is set</td>
+                        </tr>
+                        <tr>
+                            <td>Boom binds or slams</td>
+                            <td>Range copied from another crane, or geometry changed</td>
+                            <td>Find this build’s two numbers again</td>
+                        </tr>
+                        <tr>
+                            <td>Twitch, no lift</td>
+                            <td>Linkage missed, or servo not slid to a useful push</td>
+                            <td>Join green-beam joint to yellow straw; slide the motor</td>
+                        </tr>
+                        <tr>
+                            <td>Board dead, no twitch</td>
+                            <td>Power, batteries, or cable polarity</td>
+                            <td>Three AAA; switch on; black wire to the white arrow</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="fwd">Next · Four things to keep</p>
+            </section>
+
+            <!-- 11 Takeaways -->
+            <section>
+                <div class="slide-head">
+                    <h2>Key takeaways</h2>
+                    <p class="fig">Fig. 5.0 · Keep these</p>
+                </div>
+                <ol class="take">
+                    <li>01 · First movement is a test. Change motor, code, or mechanism — one layer at a time.</li>
+                    <li>02 · Zero at 0%, then write two numbers from this crane. Do not borrow a range.</li>
+                    <li>03 · Linkage turns a servo angle into a lift. Slide the motor to change how hard it pushes.</li>
+                    <li>04 · Diagnose the layer. A green simulator does not pick up recycling.</li>
+                </ol>
+                <p class="fwd">Next · What to do at the bench</p>
+            </section>
+
+            <!-- 12 Close -->
+            <section>
+                <div class="slide-head">
+                    <h2>Close</h2>
+                    <p class="fig">Fig. 5.1 · Instruction</p>
+                </div>
+                <p class="close-line">Zero the servo, write two numbers from this crane, then flash A and B inside that range.</p>
+                <p class="lede">Pairs: standing prism, linkage locked, hook lifts a light load once. Photograph the lift. Then — and only then — add a position variable or swap straw lengths.</p>
+                <div class="rule">
+                    <span class="lab">No course PDF in this tutorials repo</span>
+                    <p>Content is written against OCN NI Level 2 Diploma in Information Technology maker notes in this library (physical computing, sensor-to-action, test and iterate) and the Strawbees Classroom activity <em>Build a Robotic Crane (micro:bit)</em> used on campus.</p>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.0/dist/reveal.js"></script>
+    <script>
+        Reveal.initialize({
+            width: 1920,
+            height: 1080,
+            margin: 0.04,
+            hash: true,
+            slideNumber: "c/t",
+            transition: "fade",
+            transitionSpeed: "fast",
+            controls: true,
+            progress: true,
+            keyboard: true
+        });
+
+        (function () {
+            var btn = document.querySelector(".jargon-btn");
+            var panel = document.getElementById("jargon-panel");
+            btn.addEventListener("click", function () {
+                var open = panel.classList.toggle("open");
+                btn.setAttribute("aria-expanded", String(open));
+            });
+        })();
+    </script>
+</body>
+</html>
