@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SRC agent pathway — whiteboard explainer</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Permanent+Marker&display=block">
+<style>
+  html, body { margin: 0; height: 100%; background: #141618; color: #f3efe6; }
+  #stage { position: fixed; inset: 0 0 72px 0; display: grid; place-items: center; }
+  #stage.drop { outline: 3px dashed #1f4fc2; outline-offset: -8px; }
+  canvas { width: 100%; height: 100%; object-fit: contain; background: #141618; }
+  #bar {
+    position: fixed; left: 0; right: 0; bottom: 0; height: 72px;
+    display: flex; align-items: center; gap: 10px; padding: 0 12px;
+    background: #0e1012; font: 16px/1.2 ui-sans-serif, system-ui, sans-serif;
+  }
+  button, .file {
+    background: #f3efe6; color: #1d1f26; border: 0; border-radius: 6px;
+    min-height: 40px; padding: 0 12px; font: inherit; cursor: pointer;
+  }
+  button[aria-pressed="true"] { background: #1f4fc2; color: white; }
+  #scrub { flex: 1; min-width: 80px; height: 28px; }
+  #time { font-variant-numeric: tabular-nums; min-width: 7.2ch; }
+  .file input { display: none; }
+  #vname { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.8; }
+  label.loop { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c" width="1280" height="720" aria-label="Whiteboard explainer"></canvas>
+</div>
+<div id="bar">
+  <button id="play" type="button">Play</button>
+  <input id="scrub" type="range" min="0" max="70.6" step="0.01" value="0" aria-label="Time">
+  <span id="time">0:00.00</span>
+  <button id="sound" type="button" aria-pressed="true">Sound on</button>
+  <label class="loop"><input id="loop" type="checkbox" checked> Loop</label>
+  <label class="file">Load voiceover<input id="file" type="file" accept="audio/*"></label>
+  <span id="vname"></span>
+</div>
+<script>
+/* H helper library, unchanged from the style guide. */
+(function () {
+  const STYLES = (window.STYLES = window.STYLES || []);
+  window.registerStyle = (s) => STYLES.push(s);
+
+  const H = (window.H = {});
+
+  H.rng = function (seed = 1) {
+    let a = typeof seed === 'string' ? hashStr(seed) : (seed >>> 0) || 1;
+    const r = function () {
+      a |= 0; a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    r.range = (lo, hi) => lo + r() * (hi - lo);
+    r.int = (lo, hi) => Math.floor(lo + r() * (hi - lo + 1));
+    r.pick = (arr) => arr[Math.floor(r() * arr.length)];
+    r.chance = (p) => r() < p;
+    r.gauss = () => { let u = 0, v = 0; while (!u) u = r(); while (!v) v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    return r;
+  };
+  function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+
+  H.makeNoise = function (seed = 1) {
+    const r = H.rng(seed), p = new Uint8Array(512), perm = [...Array(256).keys()];
+    for (let i = 255; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [perm[i], perm[j]] = [perm[j], perm[i]]; }
+    for (let i = 0; i < 512; i++) p[i] = perm[i & 255];
+    const fade = (t) => t * t * t * (t * (t * 6 - 15) + 10);
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const g3 = (h, x, y, z) => { h &= 15; const u = h < 8 ? x : y, v = h < 4 ? y : h === 12 || h === 14 ? x : z; return ((h & 1) ? -u : u) + ((h & 2) ? -v : v); };
+    function n3(x, y, z) {
+      const X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255;
+      x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
+      const u = fade(x), v = fade(y), w = fade(z);
+      const A = p[X] + Y, AA = p[A] + Z, AB = p[A + 1] + Z, B = p[X + 1] + Y, BA = p[B] + Z, BB = p[B + 1] + Z;
+      return lerp(lerp(lerp(g3(p[AA], x, y, z), g3(p[BA], x - 1, y, z), u), lerp(g3(p[AB], x, y - 1, z), g3(p[BB], x - 1, y - 1, z), u), v),
+        lerp(lerp(g3(p[AA + 1], x, y, z - 1), g3(p[BA + 1], x - 1, y, z - 1), u), lerp(g3(p[AB + 1], x, y - 1, z - 1), g3(p[BB + 1], x - 1, y - 1, z - 1), u), v), w);
+    }
+    const n2 = (x, y) => n3(x, y, 0.5);
+    const fbm3 = (x, y, z, oct = 4) => { let s = 0, a = 0.5, f = 1, norm = 0; for (let i = 0; i < oct; i++) { s += a * n3(x * f, y * f, z * f); norm += a; a *= 0.5; f *= 2; } return s / norm; };
+    const fbm2 = (x, y, oct = 4) => fbm3(x, y, 0.5, oct);
+    return { n2, n3, fbm2, fbm3 };
+  };
+
+  H.lerp = (a, b, t) => a + (b - a) * t;
+  H.clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
+  H.map = (v, a, b, c, d) => c + ((v - a) / (b - a)) * (d - c);
+  H.smooth = (e0, e1, x) => { const t = H.clamp((x - e0) / (e1 - e0)); return t * t * (3 - 2 * t); };
+  H.ease = {
+    inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
+    out: (t) => 1 - Math.pow(1 - t, 3),
+    in: (t) => t * t * t,
+    back: (t) => { const c = 1.70158; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); },
+  };
+
+  H.hex = (h) => { h = h.replace('#', ''); if (h.length === 3) h = h.split('').map((c) => c + c).join(''); const n = parseInt(h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  H.rgba = (hexOrArr, a = 1) => { const [r, g, b] = Array.isArray(hexOrArr) ? hexOrArr : H.hex(hexOrArr); return `rgba(${r | 0},${g | 0},${b | 0},${a})`; };
+  H.mix = (c1, c2, t) => { const a = Array.isArray(c1) ? c1 : H.hex(c1), b = Array.isArray(c2) ? c2 : H.hex(c2); return [0, 1, 2].map((i) => a[i] + (b[i] - a[i]) * t); };
+
+  H.layer = (W, H_, ) => { const c = document.createElement('canvas'); c.width = W; c.height = H_; return c; };
+  H.grain = function (ctx, W, Hh, amount = 0.08, seed = 7, mono = true) {
+    const img = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height), d = img.data, r = H.rng(seed), k = amount * 255;
+    for (let i = 0; i < d.length; i += 4) {
+      const n = (r() - 0.5) * k;
+      if (mono) { d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+      else { d[i] += (r() - 0.5) * k; d[i + 1] += (r() - 0.5) * k; d[i + 2] += (r() - 0.5) * k; }
+    }
+    ctx.putImageData(img, 0, 0);
+  };
+  H.paper = function (ctx, W, Hh, base = '#f3ecdc', seed = 3, strength = 0.06) {
+    ctx.save(); ctx.fillStyle = base; ctx.fillRect(0, 0, W, Hh);
+    const nz = H.makeNoise(seed), cell = 4, [br, bg, bb] = H.hex(base);
+    for (let y = 0; y < Hh; y += cell) for (let x = 0; x < W; x += cell) {
+      const v = nz.fbm2(x * 0.01, y * 0.01, 3) * 0.6 + nz.n2(x * 0.15, y * 0.04) * 0.4;
+      const s = 1 + v * strength * 2;
+      ctx.fillStyle = `rgb(${br * s | 0},${bg * s | 0},${bb * s | 0})`; ctx.fillRect(x, y, cell, cell);
+    }
+    ctx.restore();
+  };
+  H.vignette = function (ctx, W, Hh, strength = 0.5, color = '0,0,0') {
+    const g = ctx.createRadialGradient(W / 2, Hh / 2, Math.min(W, Hh) * 0.3, W / 2, Hh / 2, Math.hypot(W, Hh) * 0.6);
+    g.addColorStop(0, `rgba(${color},0)`); g.addColorStop(1, `rgba(${color},${strength})`);
+    ctx.save(); ctx.fillStyle = g; ctx.fillRect(0, 0, W, Hh); ctx.restore();
+  };
+
+  H.W = 1280; H.H = 720;
+  H.loadFonts = async function (style) {
+    const specs = style.fonts || [];
+    try { const sample = 'AaZz09' + (window.FONT_SAMPLE || '');
+      await Promise.all(specs.map((f) => document.fonts.load(f, sample))); await document.fonts.ready; } catch (e) { /* render anyway */ }
+  };
+  H.render = function (style, canvas, t) {
+    const ctx = canvas.getContext('2d', { willReadFrequently: !!style.readsPixels });
+    const sx = canvas.width / H.W, sy = canvas.height / H.H;
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save(); ctx.scale(sx, sy);
+    style.draw(ctx, H.W, H.H, t == null ? style.frameT || 0 : t);
+    ctx.restore();
+  };
+})();
+
+// sound.js: a small synthesized sound kit for the style explainers. Plain Web Audio, no audio files.
+// Voiceover mode: SOUND.kit(ctx, { voiceover: true }) drops beds and music, plays anything marked minor
+// (play(..., { minor: true }), tone/noise { minor: true }, or scheduled inside k.withMinor(() => ...)) at about 60%
+// volume instead of full, and sits all effects a little lower, so the narration stays on top while the piece still
+// sounds alive. In the full mix, minor sounds play at full volume. Scores can read k.vo to branch further.
+// A style adds   explainerSound(k) { k.bed('room', 0, D); k.play('pop', 1.25); ... }   and the same
+// call schedules into a live AudioContext (the player) or an OfflineAudioContext (the video render).
+// Times are seconds on the explainer's own clock. Randomness is seeded, so every render is identical.
+(function () {
+  'use strict';
+  const SOUND = (window.SOUND = {});
+  const TINY = 1e-4;
+
+  // seeded random in [0,1), keyed by any string
+  function rand(key) {
+    let h = 2166136261;
+    for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
+    let a = h >>> 0 || 1;
+    return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+
+  // note names to Hz: 'A4' = 440, 'C#5', 'Eb3'
+  const STEP = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  function hz(n) {
+    if (typeof n === 'number') return n;
+    const m = /^([A-G])([#b]?)(-?\d)$/.exec(n);
+    const semis = STEP[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + (Number(m[3]) - 4) * 12 - 9;
+    return 440 * Math.pow(2, semis / 12);
+  }
+  SOUND.hz = hz;
+
+  SOUND.kit = function (ctx, opts) {
+    const o = opts || {};
+    const VO = !!o.voiceover;
+    const MINOR = 0.6; // voiceover-mode volume for minor sounds
+    let inMinor = false;
+    const gainOf = (p, d) => (p.gain == null ? d : p.gain) * (VO && (p.minor || inMinor) ? MINOR : 1);
+    const T0 = (o.start || 0) - 0; // explainer time that maps to ctx time `base`
+    const base = ctx.currentTime + (o.delay || 0);
+    // Start times snap to the sample grid (+ a quarter sample): in Chrome a source started a hair off the grid can
+    // spike to about twice its set level.
+    const SR = ctx.sampleRate;
+    const at = (t) => (Math.round((base + (t - T0)) * SR) + 0.25) / SR;
+
+    // ---- buses: sfx, amb, music -> compressor -> master; one shared reverb send
+    const master = ctx.createGain(); master.gain.value = o.master == null ? 0.9 : o.master;
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -16; comp.knee.value = 8; comp.ratio.value = 3; comp.attack.value = 0.004; comp.release.value = 0.18;
+    comp.connect(master); master.connect(o.dest || ctx.destination);
+    const bus = {};
+    for (const [name, g] of Object.entries({ sfx: VO ? 0.7 : 0.85, amb: 0.5, music: 0.45 })) { bus[name] = ctx.createGain(); bus[name].gain.value = g; bus[name].connect(comp); }
+
+    // generated room reverb: decaying stereo noise, darker toward the tail
+    const verb = ctx.createConvolver();
+    {
+      const secs = 1.6, n = Math.floor(secs * ctx.sampleRate), ir = ctx.createBuffer(2, n, ctx.sampleRate);
+      for (let c = 0; c < 2; c++) {
+        const r = rand('verb' + c), d = ir.getChannelData(c); let lp = 0;
+        for (let i = 0; i < n; i++) { const u = i / n; lp += (0.6 - 0.45 * u) * ((r() * 2 - 1) - lp); d[i] = lp * Math.pow(1 - u, 3); }
+      }
+      verb.buffer = ir;
+    }
+    const verbIn = ctx.createGain(); verbIn.gain.value = 0.9; verbIn.connect(verb); verb.connect(comp);
+
+    // seeded noise buffers: white, pink-ish and brown
+    const noiseBuf = {};
+    {
+      const n = Math.floor(2.5 * ctx.sampleRate);
+      for (const kind of ['white', 'pink', 'brown']) {
+        const b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0), r = rand('noise-' + kind);
+        let p0 = 0, p1 = 0, p2 = 0, br = 0;
+        for (let i = 0; i < n; i++) {
+          const w = r() * 2 - 1;
+          if (kind === 'white') d[i] = w;
+          else if (kind === 'pink') { p0 = 0.997 * p0 + 0.029 * w; p1 = 0.985 * p1 + 0.032 * w; p2 = 0.95 * p2 + 0.048 * w; d[i] = (p0 + p1 + p2 + w * 0.05) * 2.2; }
+          else { br = (br + 0.02 * w) / 1.02; d[i] = br * 3.2; }
+        }
+        noiseBuf[kind] = b;
+      }
+    }
+
+    // ---- automation helpers
+    // a value or [[dt, value], ...] from the voice start; ramps are exponential (frequencies)
+    function sweep(param, v, t) {
+      if (!Array.isArray(v)) { param.setValueAtTime(v, t); return; }
+      param.setValueAtTime(v[0][1], t + v[0][0]);
+      for (let i = 1; i < v.length; i++) param.exponentialRampToValueAtTime(Math.max(v[i][1], 1), t + v[i][0]);
+    }
+    // amplitude: linear attack to `gain`, optional hold, exponential release to silence by `dur`
+    function shape(param, t, gain, dur, a, hold) {
+      a = Math.min(a == null ? 0.004 : a, dur * 0.9);
+      hold = Math.min(hold || 0, dur - a);
+      param.setValueAtTime(0, t);
+      param.linearRampToValueAtTime(gain, t + a);
+      if (hold > 0) param.setValueAtTime(gain, t + a + hold);
+      param.exponentialRampToValueAtTime(TINY, t + dur);
+      param.setValueAtTime(0, t + dur + 0.001);
+    }
+    function out(node, p) {
+      const pan = ctx.createStereoPanner(); pan.pan.value = Math.max(-1, Math.min(1, p.pan || 0));
+      node.connect(pan); pan.connect(bus[p.bus || 'sfx']);
+      if (p.verb) { const s = ctx.createGain(); s.gain.value = p.verb; pan.connect(s); s.connect(verbIn); }
+    }
+    function filterNode(p, t) {
+      if (!p.filter) return null;
+      const f = ctx.createBiquadFilter(); f.type = p.filter; f.Q.value = p.q == null ? 1 : p.q;
+      sweep(f.frequency, p.f == null ? 1000 : p.f, t);
+      return f;
+    }
+
+    // ---- primitives
+    // tone(t, { f, type, dur, gain, a, hold, pan, verb, bus, filter, f2 (filter freq), q, detune })
+    function tone(time, p) {
+      const t = at(time), dur = p.dur || 0.2;
+      if (t + dur < ctx.currentTime || (time < T0 - 0.001 && dur < 1.5)) return;
+      const osc = ctx.createOscillator(); osc.type = p.type || 'sine';
+      sweep(osc.frequency, Array.isArray(p.f) ? p.f.map(([d, v]) => [d, hz(v)]) : hz(p.f || 440), t);
+      if (p.detune) osc.detune.value = p.detune;
+      const g = ctx.createGain(); shape(g.gain, t, gainOf(p, 0.3), dur, p.a, p.hold);
+      let node = osc;
+      if (p.filter) { const f = ctx.createBiquadFilter(); f.type = p.filter; f.Q.value = p.q == null ? 0.8 : p.q; sweep(f.frequency, p.f2 || 2000, t); osc.connect(f); node = f; }
+      node.connect(g); out(g, p);
+      osc.start(t); osc.stop(t + dur + 0.02);
+    }
+    // noise(t, { dur, color, filter, f, q, gain, a, hold, pan, verb, bus, rate })
+    function noise(time, p) {
+      const t = at(time), dur = p.dur || 0.2;
+      if (t + dur < ctx.currentTime || (time < T0 - 0.001 && dur < 1.5)) return;
+      const src = ctx.createBufferSource(); src.buffer = noiseBuf[p.color || 'white']; src.loop = true;
+      if (p.rate) src.playbackRate.value = p.rate;
+      const g = ctx.createGain(); shape(g.gain, t, gainOf(p, 0.3), dur, p.a, p.hold);
+      const f = filterNode(p, t);
+      if (f) { src.connect(f); f.connect(g); } else src.connect(g);
+      out(g, p);
+      const off = rand('off' + time + (p.f || ''))() * 2;
+      src.start(t, off); src.stop(t + dur + 0.02);
+    }
+
+    // ---- named sounds. play(name, t, opts): opts.gain scales the whole sound, opts.pan places it.
+    const S = {
+      // UI / motion graphics
+      pop: (t, o) => { tone(t, { f: [[0, o.f || 620], [0.07, (o.f || 620) * 0.45]], dur: 0.1, gain: 0.32 * o.g, pan: o.pan }); noise(t, { dur: 0.012, filter: 'highpass', f: 3000, gain: 0.12 * o.g, pan: o.pan }); },
+      tick: (t, o) => noise(t, { dur: 0.018, filter: 'bandpass', f: o.f || 4200, q: 2.5, gain: 0.3 * o.g, pan: o.pan }),
+      click: (t, o) => { tone(t, { f: o.f || 1900, type: 'square', dur: 0.02, gain: 0.08 * o.g, filter: 'lowpass', f2: 3000, pan: o.pan }); noise(t, { dur: 0.01, filter: 'highpass', f: 2500, gain: 0.15 * o.g, pan: o.pan }); },
+      tock: (t, o) => { tone(t, { f: o.f || 820, dur: 0.07, gain: 0.25 * o.g, pan: o.pan }); noise(t, { dur: 0.05, filter: 'bandpass', f: o.f || 820, q: 9, gain: 0.35 * o.g, pan: o.pan }); },
+      blip: (t, o) => tone(t, { f: o.f || 'E6', type: o.type || 'square', dur: o.dur || 0.07, gain: 0.07 * o.g, a: 0.002, hold: (o.dur || 0.07) * 0.6, pan: o.pan }),
+      whoosh: (t, o) => { const d = o.dur || 0.45; noise(t, { dur: d, color: 'pink', filter: 'bandpass', f: [[0, 350], [d * 0.55, o.top || 2600], [d, 700]], q: 0.9, gain: 0.32 * o.g, a: d * 0.5, pan: o.pan, verb: 0.15 }); },
+      swish: (t, o) => { const d = o.dur || 0.18; noise(t, { dur: d, filter: 'highpass', f: [[0, 1800], [d, 5200]], q: 0.7, gain: 0.22 * o.g, a: d * 0.35, pan: o.pan }); },
+      riser: (t, o) => { const d = o.dur || 0.8; noise(t, { dur: d, color: 'pink', filter: 'bandpass', f: [[0, 300], [d, 4000]], q: 1.2, gain: 0.25 * o.g, a: d * 0.95, pan: o.pan, verb: 0.2 }); tone(t, { f: [[0, 180], [d, 720]], type: 'triangle', dur: d, gain: 0.06 * o.g, a: d * 0.9 }); },
+      thud: (t, o) => { tone(t, { f: [[0, o.f || 130], [0.16, 42]], dur: 0.26, gain: 0.55 * o.g, pan: o.pan }); noise(t, { dur: 0.09, color: 'brown', filter: 'lowpass', f: 500, gain: 0.35 * o.g, pan: o.pan }); },
+      impact: (t, o) => { S.thud(t, o); noise(t, { dur: 0.7, color: 'pink', filter: 'lowpass', f: [[0, 2400], [0.6, 300]], gain: 0.3 * o.g, verb: 0.35, pan: o.pan }); },
+      stamp: (t, o) => { S.thud(t, { ...o, f: 160 }); noise(t, { dur: 0.05, filter: 'bandpass', f: 1300, q: 1.2, gain: 0.4 * o.g, pan: o.pan }); noise(t + 0.004, { dur: 0.012, filter: 'highpass', f: 3500, gain: 0.25 * o.g, pan: o.pan }); },
+      ding: (t, o) => { const f = hz(o.f || 'E6'); tone(t, { f, dur: 1.3, gain: 0.2 * o.g, verb: 0.3, pan: o.pan }); tone(t, { f: f * 2.76, dur: 0.5, gain: 0.05 * o.g, verb: 0.3, pan: o.pan }); },
+      success: (t, o) => { S.ding(t, { ...o, f: o.f || 'C6' }); S.ding(t + 0.09, { ...o, f: hz(o.f || 'C6') * 1.5, g: o.g * 0.9 }); },
+      error: (t, o) => { tone(t, { f: o.f || 'A3', type: 'square', dur: 0.13, gain: 0.09 * o.g, hold: 0.08, filter: 'lowpass', f2: 1400, pan: o.pan }); tone(t + 0.15, { f: hz(o.f || 'A3') * 0.8, type: 'square', dur: 0.22, gain: 0.09 * o.g, hold: 0.14, filter: 'lowpass', f2: 1200, pan: o.pan }); },
+      buzz: (t, o) => { const d = o.dur || 0.3; tone(t, { f: o.f || 110, type: 'sawtooth', dur: d, gain: 0.12 * o.g, hold: d * 0.7, filter: 'lowpass', f2: 900, pan: o.pan }); tone(t, { f: (o.f || 110) * 1.01, type: 'sawtooth', dur: d, gain: 0.1 * o.g, hold: d * 0.7, filter: 'lowpass', f2: 900, pan: o.pan }); },
+      sparkle: (t, o) => { const r = rand('sparkle' + t), notes = ['C6', 'D6', 'E6', 'G6', 'A6', 'C7']; for (let i = 0; i < (o.n || 6); i++) { const ti = t + i * 0.04 + r() * 0.01, f = hz(notes[Math.floor(r() * notes.length)]), pan = r() * 1.2 - 0.6; tone(ti, { f, dur: 0.6, gain: 0.04 * o.g, a: 0.002, verb: 0.35, pan }); tone(ti, { f: f * 2.76, dur: 0.2, gain: 0.012 * o.g, a: 0.002, pan }); } },
+      glitch: (t, o) => { const r = rand('glitch' + t); for (let i = 0; i < 7; i++) tone(t + i * 0.022, { f: 200 + r() * 1800, type: 'square', dur: 0.02, gain: 0.07 * o.g, a: 0.001, hold: 0.015, pan: r() * 1.4 - 0.7 }); noise(t, { dur: 0.16, filter: 'bandpass', f: 2500, q: 0.6, gain: 0.12 * o.g }); },
+      shutter: (t, o) => { S.click(t, o); noise(t + 0.06, { dur: 0.04, filter: 'bandpass', f: 2200, q: 1, gain: 0.2 * o.g, pan: o.pan }); },
+      count: (t, o) => S.tick(t, { ...o, f: o.f || 5200, g: o.g * 0.7 }),
+
+      // hand-made media
+      // stroke: a pen/marker/chalk/pencil stroke over `dur` seconds. material sets the surface sound.
+      stroke: (t, o) => {
+        const d = o.dur || 0.4, m = o.material || 'marker', r = rand('stroke' + m + t);
+        const M = {
+          marker: { f: 2900, q: 2.2, g: 0.16, grain: 0.05 },
+          chalk: { f: 1700, q: 0.6, g: 0.22, grain: 0.028 },
+          pencil: { f: 4600, q: 0.8, g: 0.16, grain: 0.04, filter: 'highpass' },
+          pen: { f: 4200, q: 1.6, g: 0.08, grain: 0.06 },
+          brush: { f: 900, q: 0.5, g: 0.1, grain: 0.09, color: 'pink' },
+          sharpie: { f: 2400, q: 1.4, g: 0.2, grain: 0.045 },
+        }[m];
+        for (let x = 0; x < d; x += M.grain * (0.7 + r() * 0.6)) {
+          const gd = M.grain * (0.8 + r() * 0.9);
+          noise(t + x, { dur: gd, color: M.color, filter: M.filter || 'bandpass', f: M.f * (0.8 + r() * 0.4), q: M.q, gain: M.g * o.g * (0.6 + r() * 0.5), a: gd * 0.3, pan: (o.pan || 0) + (r() - 0.5) * 0.2 });
+        }
+      },
+      // paper: picking up / slapping down / turning a sheet
+      paper: (t, o) => { const d = o.dur || 0.35, r = rand('paper' + t); for (let x = 0; x < d; x += 0.025 + r() * 0.03) noise(t + x, { dur: 0.05, filter: 'bandpass', f: 1200 + r() * 2600, q: 0.9, gain: 0.12 * o.g * (1 - x / d * 0.5), pan: o.pan }); },
+      slap: (t, o) => { noise(t, { dur: 0.07, filter: 'highpass', f: 900, gain: 0.45 * o.g, a: 0.001, pan: o.pan }); tone(t, { f: [[0, 180], [0.06, 70]], dur: 0.1, gain: 0.25 * o.g, pan: o.pan }); },
+      tape: (t, o) => { noise(t, { dur: o.dur || 0.5, filter: 'bandpass', f: [[0, 900], [o.dur || 0.5, 2200]], q: 1.8, gain: 0.18 * o.g, a: 0.02, pan: o.pan }); },
+      press: (t, o) => { S.thud(t, { ...o, f: 95, g: o.g * 0.9 }); noise(t + 0.01, { dur: 0.25, color: 'brown', filter: 'lowpass', f: 700, gain: 0.25 * o.g, pan: o.pan }); },
+      roller: (t, o) => { const d = o.dur || 0.6; noise(t, { dur: d, color: 'brown', filter: 'bandpass', f: 380, q: 1.5, gain: 0.3 * o.g, a: 0.05, hold: d * 0.6, pan: o.pan }); for (let x = 0; x < d; x += 0.07) S.tock(t + x, { f: 300, g: o.g * 0.15, pan: o.pan }); },
+      erase: (t, o) => { const d = o.dur || 0.6, r = rand('erase' + t); for (let x = 0; x < d; x += 0.06 + r() * 0.04) noise(t + x, { dur: 0.08, color: 'pink', filter: 'bandpass', f: 700 + r() * 500, q: 0.8, gain: 0.22 * o.g, a: 0.03, pan: (r() - 0.5) * 0.5 }); },
+
+      // machines and screens
+      key: (t, o) => { const r = rand('key' + t); noise(t, { dur: 0.025, filter: 'bandpass', f: 2600 + r() * 1200, q: 2, gain: 0.25 * o.g, a: 0.001, pan: o.pan }); tone(t, { f: 160 + r() * 40, dur: 0.04, gain: 0.12 * o.g, pan: o.pan }); },
+      typing: (t, o) => { const r = rand('typing' + t), n = o.n || 8, rate = o.rate || 0.09; for (let i = 0; i < n; i++) S.key(t + i * rate * (0.75 + r() * 0.5), { g: o.g * (0.7 + r() * 0.4), pan: o.pan }); },
+      typebar: (t, o) => { S.key(t, o); noise(t + 0.008, { dur: 0.03, filter: 'bandpass', f: 1100, q: 4, gain: 0.35 * o.g, pan: o.pan }); },
+      bell: (t, o) => S.ding(t, { ...o, f: o.f || 'A6' }),
+      boot: (t, o) => { tone(t, { f: [[0, 80], [0.35, 1600]], type: 'sine', dur: 0.5, gain: 0.08 * o.g, a: 0.3 }); S.blip(t + 0.45, { ...o, f: 'C6', dur: 0.12 }); },
+      crtOn: (t, o) => { noise(t, { dur: 0.25, filter: 'highpass', f: 2000, gain: 0.2 * o.g, a: 0.001 }); tone(t, { f: 15700, dur: 1.5, gain: 0.02 * o.g, a: 0.1, hold: 1 }); S.thud(t, { ...o, f: 90, g: o.g * 0.5 }); },
+      neon: (t, o) => { const d = o.dur || 0.25, r = rand('neon' + t); for (let x = 0; x < d; x += 0.035 + r() * 0.04) tone(t + x, { f: 120, type: 'sawtooth', dur: 0.03, gain: 0.3 * o.g * (0.5 + r() * 0.5), filter: 'bandpass', f2: 1200, q: 1.2, pan: o.pan }); },
+      // chip (8-bit console) sounds: raw square/triangle, no filtering
+      coin: (t, o) => { tone(t, { f: 'B5', type: 'square', dur: 0.07, gain: 0.07 * o.g, a: 0.001, hold: 0.06 }); tone(t + 0.07, { f: 'E6', type: 'square', dur: 0.3, gain: 0.07 * o.g, a: 0.001, hold: 0.1 }); },
+      jump: (t, o) => tone(t, { f: [[0, 260], [0.16, 820]], type: 'square', dur: 0.18, gain: 0.07 * o.g, a: 0.001, hold: 0.12 }),
+      hurt: (t, o) => { tone(t, { f: [[0, 600], [0.25, 90]], type: 'square', dur: 0.28, gain: 0.08 * o.g, a: 0.001, hold: 0.2 }); noise(t, { dur: 0.2, filter: 'lowpass', f: 1800, gain: 0.15 * o.g, rate: 0.25 }); },
+      powerup: (t, o) => ['C5', 'E5', 'G5', 'C6', 'E6', 'G6', 'C7'].forEach((n, i) => tone(t + i * 0.045, { f: n, type: 'square', dur: 0.06, gain: 0.06 * o.g, a: 0.001, hold: 0.05 })),
+      select: (t, o) => { S.blip(t, { ...o, f: 'A5', dur: 0.04 }); S.blip(t + 0.05, { ...o, f: 'E6', dur: 0.05 }); },
+      text: (t, o) => { const n = o.n || 10, rate = o.rate || 0.05; for (let i = 0; i < n; i++) tone(t + i * rate, { f: i % 2 ? 'C6' : 'G5', type: 'square', dur: 0.025, gain: 0.04 * o.g, a: 0.001, hold: 0.015 }); },
+    };
+
+    function play(name, t, opts) {
+      const fn = S[name];
+      if (!fn) throw new Error('unknown sound: ' + name);
+      const o2 = Object.assign({}, opts); o2.g = o2.gain == null ? 1 : o2.gain;
+      if (opts && opts.minor) withMinor(() => fn(t, o2)); else fn(t, o2);
+    }
+
+    // everything scheduled inside fn counts as minor (quieter in voiceover mode)
+    function withMinor(fn) { const was = inMinor; inMinor = true; try { fn(); } finally { inMinor = was; } }
+
+    // ---- beds: continuous sound under a stretch of time. bed(name, t0, t1, opts)
+    function bed(name, t0, t1, p) {
+      if (VO) return;
+      p = p || {}; const g = p.gain == null ? 1 : p.gain, d = t1 - t0, fade = Math.min(0.4, d / 4);
+      const long = (q) => Object.assign({ dur: d, a: fade, hold: d - fade * 2, bus: 'amb' }, q);
+      if (name === 'room') noise(t0, long({ color: 'brown', filter: 'lowpass', f: 320, gain: 0.12 * g }));
+      else if (name === 'hiss') noise(t0, long({ color: 'pink', filter: 'highpass', f: 5000, gain: 0.02 * g }));
+      else if (name === 'hum') { tone(t0, long({ f: 60, gain: 0.05 * g })); tone(t0, long({ f: 120, gain: 0.025 * g })); tone(t0, long({ f: 180, type: 'triangle', gain: 0.012 * g })); }
+      else if (name === 'rain') { noise(t0, long({ color: 'pink', filter: 'bandpass', f: 2500, q: 0.4, gain: 0.08 * g })); const r = rand('rain'); for (let x = 0; x < d; x += 0.04 + r() * 0.08) noise(t0 + x, { dur: 0.01, filter: 'highpass', f: 4000, gain: 0.04 * g * r(), bus: 'amb', pan: r() * 1.6 - 0.8 }); }
+      else if (name === 'projector') { noise(t0, long({ color: 'pink', filter: 'highpass', f: 3000, gain: 0.03 * g })); for (let x = 0; x < d; x += 1 / 24) S.tock(t0 + x, { f: 700, g: 0.04 * g, pan: 0.3 }); }
+      else if (name === 'vinyl') { noise(t0, long({ color: 'pink', filter: 'bandpass', f: 1500, q: 0.5, gain: 0.025 * g })); const r = rand('vinyl'); for (let x = 0; x < d; x += 0.08 + r() * 0.4) noise(t0 + x, { dur: 0.006, filter: 'highpass', f: 2500, gain: 0.08 * g * r(), bus: 'amb' }); }
+      else throw new Error('unknown bed: ' + name);
+    }
+
+    // ---- music: optional light beds that sit under the effects. music(name, t0, t1, { bpm, chords, gain })
+    // chords: list of note arrays, one per bar, cycled. e.g. [['C4','E4','G4','B4'], ['A3','C4','E4','G4']]
+    function music(name, t0, t1, p) {
+      if (VO) return;
+      p = p || {}; const g = p.gain == null ? 1 : p.gain, bpm = p.bpm || 100, beat = 60 / bpm, bar = beat * 4;
+      const chords = p.chords || [['C4', 'E4', 'G4', 'B4'], ['A3', 'C4', 'E4', 'G4'], ['F3', 'A3', 'C4', 'E4'], ['G3', 'B3', 'D4', 'F4']];
+      let i = 0;
+      for (let t = t0; t < t1 - 0.05; t += bar, i++) {
+        const ch = chords[i % chords.length], len = Math.min(bar, t1 - t);
+        if (name === 'pad' || name === 'pulse') ch.forEach((n, k) => { tone(t, { f: n, type: 'triangle', dur: len + 0.3, gain: 0.035 * g, a: 0.25, hold: len - 0.3, bus: 'music', filter: 'lowpass', f2: 1400, pan: (k - 1.5) * 0.25, verb: 0.25 }); tone(t, { f: hz(n) * 1.004, type: 'sine', dur: len + 0.3, gain: 0.03 * g, a: 0.3, hold: len - 0.3, bus: 'music' }); });
+        if (name === 'pulse') for (let b = 0; b < 4 && t + b * beat < t1 - 0.05; b++) {
+          const tb = t + b * beat;
+          tone(tb, { f: [[0, 110], [0.1, 50]], dur: 0.18, gain: (b % 2 ? 0.16 : 0.26) * g, bus: 'music' });
+          noise(tb + beat / 2, { dur: 0.04, filter: 'highpass', f: 7000, gain: 0.05 * g, bus: 'music' });
+          tone(tb + beat / 2, { f: hz(ch[0]) / 2, type: 'triangle', dur: beat * 0.45, gain: 0.08 * g, bus: 'music' });
+        }
+        if (name === 'chip') for (let s = 0; s < 8 && t + s * beat / 2 < t1 - 0.05; s++) {
+          const ts = t + s * beat / 2;
+          tone(ts, { f: hz(ch[0]) / 2, type: 'triangle', dur: beat * 0.45, gain: 0.12 * g, a: 0.001, hold: beat * 0.35, bus: 'music' });
+          tone(ts, { f: ch[[0, 1, 2, 3, 2, 1, 2, 3][s]], type: 'square', dur: beat * 0.4, gain: 0.03 * g, a: 0.001, hold: beat * 0.25, bus: 'music' });
+        }
+      }
+    }
+
+    return { play, bed, music, tone, noise, withMinor, hz, vo: VO, sounds: Object.keys(S) };
+  };
+
+  // Live playback for a player: SOUND.live(scoreFn, fromT, { voiceover, master }) starts the score from explainer time
+  // fromT right now and returns stop(). Call stop() on pause or seek, and SOUND.live again on play.
+  SOUND.live = function (fn, fromT, opts) {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    fn(SOUND.kit(ctx, Object.assign({}, opts, { start: fromT || 0, delay: 0.03 })));
+    return () => { try { ctx.close(); } catch (e) {} };
+  };
+
+  // Render a style's explainerSound into an OfflineAudioContext; returns interleaved float stereo.
+  SOUND.renderOffline = async function (fn, duration, sampleRate, kitOpts) {
+    const sr = sampleRate || 48000, len = Math.ceil(duration * sr);
+    const ctx = new OfflineAudioContext(2, len, sr);
+    fn(SOUND.kit(ctx, kitOpts || {}));
+    const buf = await ctx.startRendering();
+    const L = buf.getChannelData(0), R = buf.getChannelData(1), inter = new Float32Array(len * 2);
+    let peak = 0;
+    for (let i = 0; i < len; i++) { inter[2 * i] = L[i]; inter[2 * i + 1] = R[i]; peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i])); }
+    return { inter, peak, frames: len, sr };
+  };
+})();
+
+/* Timed whiteboard explainer. Every landing reads from BEATS.
+   Coordinates and seeds match the storyboard drawers. */
+(function () {
+  const H = window.H;
+  const seg = (pts, step = 2.5) => {
+    const out = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [x0, y0] = pts[i], [x1, y1] = pts[i + 1];
+      const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / step));
+      for (let j = 0; j < n; j++) out.push([x0 + (x1 - x0) * j / n, y0 + (y1 - y0) * j / n]);
+    }
+    out.push(pts[pts.length - 1]);
+    return out;
+  };
+  const normals = (P) => P.map((p, i) => {
+    const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)];
+    const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy) || 1;
+    return [-dy / d, dx / d];
+  });
+  const wobble = (pts, nz, seed, amp = 1.6, freq = 0.011) => {
+    const N = normals(pts); let L = 0;
+    return pts.map((p, i) => {
+      if (i) L += Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]);
+      const o = nz.n2(L * freq + seed * 1.37, seed * 0.71) * amp + nz.n2(L * freq * 6 + seed, seed + 3.3) * amp * 0.25;
+      return [p[0] + N[i][0] * o, p[1] + N[i][1] * o];
+    });
+  };
+  const tracePath = (ctx, P) => { ctx.beginPath(); P.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); };
+
+  const BOARD = [236, 240, 239];
+  const MN = H.makeNoise(4242);
+  const nz = H.makeNoise(11);
+  let TIP = null;
+  let ERASER = null;
+  let INK = null;
+  const PATH = {};
+  const XC = {};
+
+  const marker = (ctx, pts, col, w, seed, prog = 1) => {
+    if (prog <= 0 || !pts || pts.length < 2) return;
+    if (prog > 0.997) prog = 1;
+    if (INK) col = INK;
+    if (prog < 1 && !INK) { const q = pts[Math.max(1, Math.ceil(pts.length * prog)) - 1]; TIP = [q[0], q[1], col]; }
+    const P = prog < 1 ? pts.slice(0, Math.max(2, Math.ceil(pts.length * prog))) : pts;
+    const r = H.rng(seed), rgb = H.hex(col), N = normals(P);
+    ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.strokeStyle = H.rgba(rgb, 0.3); ctx.lineWidth = w; tracePath(ctx, P); ctx.stroke();
+    ctx.lineCap = 'butt';
+    const CH = 10;
+    for (let i = 0; i < P.length - 1; i += CH) {
+      const a = 0.16 + 0.22 * (0.5 + 0.5 * MN.n2(i * 0.03 + seed * 3.1, seed * 0.37));
+      ctx.strokeStyle = H.rgba(rgb, a); ctx.lineWidth = w * 0.96;
+      ctx.beginPath(); ctx.moveTo(P[i][0], P[i][1]);
+      for (let j = i + 1; j <= Math.min(P.length - 1, i + CH); j++) ctx.lineTo(P[j][0], P[j][1]);
+      ctx.stroke();
+    }
+    const n = 7;
+    for (let k = 0; k < n; k++) {
+      const u = k / (n - 1) - 0.5, edge = Math.abs(u) * 2;
+      const a = (0.08 + 0.5 * Math.pow(edge, 2.2)) * (0.65 + r() * 0.7);
+      ctx.strokeStyle = H.rgba(rgb, a); ctx.lineWidth = (w / n) * 1.5;
+      const off = u * w * 0.84;
+      ctx.beginPath();
+      P.forEach((p, i) => { const x = p[0] + N[i][0] * off, y = p[1] + N[i][1] * off; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      ctx.stroke();
+    }
+    for (let k = 0; k < 4; k++) {
+      const off = (r() - 0.5) * w * 0.6;
+      ctx.strokeStyle = H.rgba(BOARD, 0.14 + r() * 0.2); ctx.lineWidth = 0.6 + r() * 0.6;
+      const s = Math.floor(r() * P.length * 0.4), e = Math.min(P.length, s + Math.floor(P.length * (0.3 + r() * 0.6)));
+      ctx.beginPath();
+      for (let i = s; i < e; i++) { const x = P[i][0] + N[i][0] * off, y = P[i][1] + N[i][1] * off; i > s ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.stroke();
+    }
+    [P[0], prog >= 1 ? P[P.length - 1] : null].forEach((p, j) => {
+      if (!p) return;
+      const g = ctx.createRadialGradient(p[0], p[1], 0, p[0], p[1], w * 0.62);
+      g.addColorStop(0, H.rgba(rgb, j ? 0.25 : 0.42)); g.addColorStop(1, H.rgba(rgb, 0));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p[0], p[1], w * 0.62, 0, 7); ctx.fill();
+    });
+    ctx.restore();
+  };
+
+  const mText = (ctx, str, x, y, font, col, seed, prog = 1, rot = 0) => {
+    if (prog <= 0 || str == null) return;
+    prog = Math.min(1, prog);
+    str = String(str);
+    if (INK) col = INK;
+    const r = H.rng(seed), rgb = H.hex(col);
+    ctx.save(); ctx.font = font; ctx.textBaseline = 'alphabetic';
+    ctx.translate(x, y); ctx.rotate(rot);
+    const nChars = Math.ceil(str.length * prog);
+    if (prog < 1 && !INK) {
+      const wsofar = ctx.measureText(str.slice(0, nChars)).width;
+      TIP = [x + Math.cos(rot) * wsofar, y + Math.sin(rot) * wsofar - 10, col];
+    }
+    let cx = 0;
+    for (let i = 0; i < nChars; i++) {
+      const ch = str[i], wch = ctx.measureText(ch).width;
+      ctx.save(); ctx.translate(cx + wch / 2, (r() - 0.5) * 3); ctx.rotate((r() - 0.5) * 0.07);
+      ctx.fillStyle = H.rgba(rgb, 0.8 + r() * 0.1); ctx.fillText(ch, -wch / 2, 0);
+      ctx.strokeStyle = H.rgba(rgb, 0.7); ctx.lineWidth = 1.3; ctx.strokeText(ch, -wch / 2, 0);
+      ctx.restore();
+      cx += wch + (r() - 0.5) * 1.5;
+    }
+    ctx.restore();
+  };
+
+  const K = '#1d1f26', B = '#1f4fc2', R = '#d4262f', G = '#16884a';
+  const fontOf = (kind, size) => kind === 'title'
+    ? `400 ${size}px "Permanent Marker"`
+    : `700 ${size}px "Kalam"`;
+  function textW(ctx, s, font) {
+    ctx.save(); ctx.font = font; const w = ctx.measureText(s).width; ctx.restore(); return w;
+  }
+  function pathOf(pts, seed, amp) {
+    const a = pts[0], b = pts[pts.length - 1];
+    const key = seed + ':' + amp + ':' + pts.length + ':' + (a[0] | 0) + ':' + (a[1] | 0) + ':' + (b[0] | 0) + ':' + (b[1] | 0);
+    if (!PATH[key]) PATH[key] = wobble(seg(pts), nz, seed, amp);
+    return PATH[key];
+  }
+  function ink(ctx, pts, col, w, seed, amp, p) {
+    if (!p || p <= 0) return;
+    marker(ctx, pathOf(pts, seed, amp == null ? 1.6 : amp), col, w, seed, p);
+  }
+  function write(ctx, s, x, y, kind, size, col, seed, rot, p) {
+    if (!p || p <= 0) return;
+    mText(ctx, s, x, y, fontOf(kind, Math.max(8, size)), col, seed, p, rot || 0);
+  }
+  function writeC(ctx, s, cx, y, kind, size, col, seed, rot, p) {
+    const font = fontOf(kind, Math.max(8, size));
+    write(ctx, s, cx - textW(ctx, s, font) / 2, y, kind, size, col, seed, rot, p);
+  }
+  function boxPts(x0, y0, x1, y1) {
+    return [[x0 - 6, y0 + 2], [x1 + 4, y0 - 2], [x1 + 1, y1 + 6], [x0 + 2, y1 + 1], [x0 + 1, y0 - 8]];
+  }
+  function dbox(ctx, x0, y0, x1, y1, col, seed, p) {
+    if (p <= 0) return;
+    ink(ctx, boxPts(x0, y0, x1, y1), col, 7, seed, 2.0, Math.min(1, p / 0.62));
+    if (p > 0.48) {
+      const inner = boxPts(x0 + 7, y0 + 7, x1 - 7, y1 - 7).map(([x, y]) => [x + 3, y - 2]);
+      ink(ctx, inner, col, 4.5, seed + 1, 2.3, Math.min(1, (p - 0.48) / 0.52));
+    }
+  }
+  function tick(ctx, x, y, col, seed, s, p) {
+    ink(ctx, [[x, y], [x + 16 * s, y + 22 * s], [x + 48 * s, y - 28 * s]], col, 8, seed, 0.7, p);
+  }
+  function arrow(ctx, pts, col, w, seed, headLen, p) {
+    if (p <= 0) return;
+    headLen = headLen || 22;
+    const shaft = pathOf(pts, seed, 1.5);
+    marker(ctx, shaft, col, w, seed * 7, Math.min(1, p / 0.7));
+    if (p < 0.62) return;
+    const hp = Math.min(1, (p - 0.62) / 0.38);
+    const a = shaft[shaft.length - 1], b = shaft[Math.max(0, shaft.length - 6)];
+    const ang = Math.atan2(a[1] - b[1], a[0] - b[0]);
+    ink(ctx, [[a[0] - Math.cos(ang - 0.5) * headLen, a[1] - Math.sin(ang - 0.5) * headLen], a], col, w, seed + 50, 0.6, hp);
+    ink(ctx, [[a[0] - Math.cos(ang + 0.5) * headLen, a[1] - Math.sin(ang + 0.5) * headLen], [a[0] + 1, a[1] + 1]], col, w, seed + 51, 0.6, hp);
+  }
+  function underline(ctx, x0, x1, y, col, seed, p) {
+    ink(ctx, [[x0, y], [(x0 + x1) / 2, y - 5], [x1, y + 3]], col, 8, seed, 2.1, Math.min(1, p / 0.6));
+    if (p > 0.45) ink(ctx, [[x0 + 18, y + 14], [(x0 + x1) / 2, y + 9], [x1 - 16, y + 16]], col, 6, seed + 1, 2.1, Math.min(1, (p - 0.45) / 0.55));
+  }
+  function envelope(ctx, x, y, seed, p) {
+    ink(ctx, [[x, y], [x + 86, y], [x + 86, y + 58], [x, y + 58], [x, y]], K, 4, seed, 1.1, Math.min(1, p / 0.6));
+    if (p > 0.45) ink(ctx, [[x, y], [x + 43, y + 30], [x + 86, y]], K, 4, seed + 1, 1.0, Math.min(1, (p - 0.45) / 0.55));
+  }
+  function sheetIcon(ctx, x, y, seed, p) {
+    const lines = [
+      [[x, y], [x + 78, y], [x + 78, y + 64], [x, y + 64], [x, y]],
+      [[x, y + 21], [x + 78, y + 21]],
+      [[x, y + 42], [x + 78, y + 42]],
+      [[x + 26, y], [x + 26, y + 64]],
+      [[x + 52, y], [x + 52, y + 64]],
+    ];
+    lines.forEach((ln, i) => {
+      const a = i * 0.14;
+      if (p > a) ink(ctx, ln, K, i ? 3 : 4, seed + i, i ? 0.5 : 1, Math.min(1, (p - a) / 0.4));
+    });
+  }
+  function draftIcon(ctx, x, y, seed, p) {
+    ink(ctx, [[x, y], [x + 70, y], [x + 70, y + 84], [x, y + 84], [x, y]], K, 4, seed, 1.0, Math.min(1, p / 0.45));
+    [18, 36, 54, 70].forEach((yy, i) => {
+      const a = 0.30 + i * 0.12;
+      const span = Math.min(0.28, 1 - a);
+      if (p > a) ink(ctx, [[x + 12, y + yy], [x + 58, y + yy - 2]], K, 3, seed + 5 + i, 0.4, Math.min(1, (p - a) / span));
+    });
+  }
+
+  function surface(ctx, W, H_) {
+    const bg = ctx.createLinearGradient(0, 0, W, H_);
+    bg.addColorStop(0, '#f6f8f7'); bg.addColorStop(0.55, '#ecefee'); bg.addColorStop(1, '#dfe4e3');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H_);
+    const rb = H.rng(5);
+    for (let i = 0; i < 14; i++) {
+      const x = rb.range(26, W - 26), y = rb.range(26, 650), rr = rb.range(80, 260);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, rr);
+      g.addColorStop(0, `rgba(150,160,165,${rb.range(0.015, 0.04)})`); g.addColorStop(1, 'rgba(150,160,165,0)');
+      ctx.fillStyle = g; ctx.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+    }
+  }
+  function fixedGhost(ctx, W, H_) {
+    const g = H.layer(W, H_), gc = g.getContext('2d');
+    gc.strokeStyle = '#30343c'; gc.fillStyle = '#30343c'; gc.lineCap = 'round'; gc.lineJoin = 'round';
+    gc.lineWidth = 7;
+    gc.font = '400 52px "Permanent Marker"'; gc.fillText('EVENING', 78, 118);
+    gc.font = '700 34px "Kalam"';
+    ['- bring ID', '- log in first', '- lab Fri'].forEach((s, i) => gc.fillText(s, 96, 176 + i * 44));
+    tracePath(gc, wobble(seg([[70, 136], [250, 132], [430, 128]]), nz, 40)); gc.stroke();
+    gc.font = '700 34px "Kalam"'; gc.fillText('room B12', 980, 600);
+    gc.beginPath(); gc.rect(900, 150, 180, 90); gc.stroke();
+    gc.font = '700 30px "Kalam"'; gc.fillText('week 2', 940, 204);
+    tracePath(gc, wobble(seg([[70, 560], [150, 520], [230, 548], [340, 490]]), nz, 41)); gc.stroke();
+    const m = H.layer(W, H_), mc = m.getContext('2d'), rm = H.rng(77);
+    mc.lineCap = 'round';
+    for (let i = 0; i < 70; i++) {
+      const y = rm.range(40, 660), x = rm.range(20, 1100), len = rm.range(150, 420);
+      mc.strokeStyle = `rgba(0,0,0,${rm.range(0.15, 0.8)})`; mc.lineWidth = rm.range(4, 26);
+      mc.beginPath(); mc.moveTo(x, y); mc.quadraticCurveTo(x + len / 2, y + rm.range(-30, 30), x + len, y + rm.range(-18, 18)); mc.stroke();
+    }
+    gc.globalCompositeOperation = 'destination-in'; gc.drawImage(m, 0, 0);
+    ctx.save(); ctx.filter = 'blur(0.7px)'; ctx.globalAlpha = 0.11; ctx.drawImage(g, 0, 0); ctx.restore();
+    const rh = H.rng(78);
+    ctx.save(); ctx.lineCap = 'round'; ctx.filter = 'blur(6px)';
+    for (let i = 0; i < 9; i++) {
+      const x = rh.range(60, 520), y = rh.range(70, 280);
+      ctx.strokeStyle = `rgba(120,128,135,${rh.range(0.012, 0.028)})`; ctx.lineWidth = rh.range(30, 60);
+      ctx.beginPath(); ctx.moveTo(x - 120, y); ctx.quadraticCurveTo(x, y + rh.range(-25, 25), x + 120, y + rh.range(-10, 10)); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function sheen(ctx, W, H_, t) {
+    ctx.save();
+    const sh = ctx.createLinearGradient(220 + t * 6, -60, 760 + t * 6, 760);
+    sh.addColorStop(0.0, 'rgba(255,255,255,0)');
+    sh.addColorStop(0.36, 'rgba(255,255,255,0)');
+    sh.addColorStop(0.43, 'rgba(255,255,255,0.26)');
+    sh.addColorStop(0.47, 'rgba(255,255,255,0.12)');
+    sh.addColorStop(0.5, 'rgba(255,255,255,0.3)');
+    sh.addColorStop(0.58, 'rgba(255,255,255,0)');
+    sh.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sh; ctx.fillRect(0, 0, W, H_);
+    [[380, 70, 260, 26], [930, 66, 230, 22]].forEach(([x, y, rx, ry]) => {
+      ctx.save(); ctx.translate(x, y); ctx.scale(1, ry / rx);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+      g.addColorStop(0, 'rgba(255,255,255,0.55)'); g.addColorStop(0.5, 'rgba(255,255,255,0.18)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, rx, 0, 7); ctx.fill(); ctx.restore();
+    });
+    const fo = ctx.createLinearGradient(0, 450, 0, 650);
+    fo.addColorStop(0, 'rgba(60,70,80,0)'); fo.addColorStop(1, 'rgba(60,70,80,0.07)');
+    ctx.fillStyle = fo; ctx.fillRect(0, 450, W, 200);
+    ctx.restore();
+  }
+  function frame(ctx, W, H_) {
+    const BX0 = 26, BY0 = 26, BX1 = W - 26, BY1 = 650;
+    ctx.save();
+    const inner = (x, y, w, h, dir) => {
+      const g = dir === 'v' ? ctx.createLinearGradient(x, y, x, y + h) : ctx.createLinearGradient(x, y, x + w, y);
+      g.addColorStop(0, 'rgba(40,45,55,0.16)'); g.addColorStop(1, 'rgba(40,45,55,0)');
+      ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+    };
+    inner(BX0, BY0, BX1 - BX0, 10, 'v'); inner(BX0, BY0, 8, BY1 - BY0, 'h');
+    const metal = (g) => {
+      g.addColorStop(0, '#f4f5f6'); g.addColorStop(0.35, '#c6cace'); g.addColorStop(0.55, '#e7e9eb'); g.addColorStop(0.8, '#a3a8ae'); g.addColorStop(1, '#7c8187');
+      return g;
+    };
+    ctx.fillStyle = metal(ctx.createLinearGradient(0, 0, 0, BY0)); ctx.fillRect(0, 0, W, BY0);
+    ctx.fillStyle = metal(ctx.createLinearGradient(0, 0, BX0, 0)); ctx.fillRect(0, 0, BX0, BY1);
+    ctx.fillStyle = metal(ctx.createLinearGradient(W, 0, BX1, 0)); ctx.fillRect(BX1, 0, W - BX1, BY1);
+    ctx.strokeStyle = 'rgba(70,75,82,0.6)'; ctx.lineWidth = 1.5; ctx.strokeRect(BX0 - 0.5, BY0 - 0.5, BX1 - BX0 + 1, BY1 - BY0 + 1);
+    [[0, 1], [W, -1]].forEach(([x, sx]) => {
+      ctx.save(); ctx.translate(x, 0); ctx.scale(sx, 1);
+      const g = ctx.createLinearGradient(0, 0, 40, 40); g.addColorStop(0, '#6b6f75'); g.addColorStop(1, '#3d4045');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(42, 0); ctx.lineTo(42, 14); ctx.quadraticCurveTo(42, 42, 14, 42); ctx.lineTo(0, 42); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    });
+    const tg = ctx.createLinearGradient(0, BY1, 0, 694);
+    tg.addColorStop(0, '#6f747b'); tg.addColorStop(0.4, '#9ca1a7'); tg.addColorStop(1, '#c3c7cb');
+    ctx.fillStyle = tg; ctx.fillRect(0, BY1, W, 694 - BY1);
+    const mk = (x, len, body, cap, rot) => {
+      ctx.save(); ctx.translate(x, 674); ctx.rotate(rot);
+      const shg = ctx.createRadialGradient(len / 2, 12, 2, len / 2, 12, len / 2);
+      shg.addColorStop(0, 'rgba(0,0,0,0.35)'); shg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = shg; ctx.fillRect(-10, 0, len + 20, 22);
+      const bg2 = ctx.createLinearGradient(0, -11, 0, 11);
+      bg2.addColorStop(0, H.rgba(H.mix(body, '#ffffff', 0.35))); bg2.addColorStop(0.35, body); bg2.addColorStop(1, H.rgba(H.mix(body, '#000000', 0.5)));
+      ctx.fillStyle = bg2; ctx.beginPath(); ctx.roundRect(0, -11, len * 0.72, 22, 8); ctx.fill();
+      const cg = ctx.createLinearGradient(0, -12, 0, 12);
+      cg.addColorStop(0, H.rgba(H.mix(cap, '#ffffff', 0.4))); cg.addColorStop(0.35, cap); cg.addColorStop(1, H.rgba(H.mix(cap, '#000000', 0.5)));
+      ctx.fillStyle = cg; ctx.beginPath(); ctx.roundRect(len * 0.7, -12, len * 0.3, 24, 9); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.fillRect(len * 0.18, -5, len * 0.3, 7);
+      ctx.fillStyle = cap; ctx.fillRect(len * 0.21, -3, len * 0.12, 3);
+      ctx.restore();
+    };
+    mk(860, 150, '#e9eaec', '#1f4fc2', -0.02);
+    mk(1040, 150, '#e9eaec', '#1d1f26', 0.015);
+    ctx.save(); ctx.translate(180, 668);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(4, 10, 150, 18);
+    const eg = ctx.createLinearGradient(0, -14, 0, 14); eg.addColorStop(0, '#5b6470'); eg.addColorStop(1, '#2c323a');
+    ctx.fillStyle = eg; ctx.beginPath(); ctx.roundRect(0, -14, 150, 26, 5); ctx.fill();
+    ctx.fillStyle = '#3e3e3e'; ctx.fillRect(4, 10, 142, 6);
+    ctx.restore();
+    const lg = ctx.createLinearGradient(0, 692, 0, H_);
+    lg.addColorStop(0, '#f0f2f3'); lg.addColorStop(0.3, '#cfd3d7'); lg.addColorStop(0.75, '#a2a7ad'); lg.addColorStop(1, '#73787e');
+    ctx.fillStyle = lg; ctx.fillRect(0, 692, W, H_ - 692);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fillRect(0, 692, W, 1.5);
+    ctx.restore();
+  }
+  function drawHand(ctx, tx, ty, col) {
+    const ang = 0.95, len = 230;
+    ctx.save();
+    ctx.save(); ctx.filter = 'blur(8px)'; ctx.fillStyle = 'rgba(40,50,60,0.25)';
+    ctx.translate(tx + 14, ty + 18); ctx.rotate(ang); ctx.beginPath(); ctx.roundRect(8, -14, len, 28, 12); ctx.fill(); ctx.restore();
+    ctx.translate(tx, ty); ctx.rotate(ang);
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(-2, -3); ctx.lineTo(16, -6); ctx.lineTo(16, 6); ctx.lineTo(-2, 2); ctx.closePath(); ctx.fill();
+    const g = ctx.createLinearGradient(0, -14, 0, 14);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.4, '#e4e6e8'); g.addColorStop(1, '#9ea3a8');
+    ctx.fillStyle = '#c9ccd0'; ctx.beginPath(); ctx.roundRect(14, -9, 20, 18, 4); ctx.fill();
+    ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(32, -14, len - 32, 28, 10); ctx.fill();
+    ctx.fillStyle = col; ctx.fillRect(len - 52, -14, 40, 28);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fillRect(40, -9, len - 100, 4);
+    ctx.fillStyle = H.rgba(col, 0.85); ctx.fillRect(70, -2, 60, 5);
+    ctx.restore();
+  }
+  function drawEraser(ctx, ex, ey) {
+    ctx.save(); ctx.translate(ex, ey); ctx.rotate(-0.08);
+    ctx.save(); ctx.filter = 'blur(8px)'; ctx.fillStyle = 'rgba(30,40,50,0.3)'; ctx.fillRect(-70, -34, 160, 80); ctx.restore();
+    const eg = ctx.createLinearGradient(0, -40, 0, 30); eg.addColorStop(0, '#6a7480'); eg.addColorStop(1, '#2c323a');
+    ctx.fillStyle = eg; ctx.beginPath(); ctx.roundRect(-80, -42, 160, 66, 10); ctx.fill();
+    ctx.fillStyle = '#3b3b3b'; ctx.fillRect(-78, 18, 156, 14);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.fillRect(-70, -36, 140, 5);
+    ctx.restore();
+  }
+
+  const FIBRES = (() => {
+    const r = H.rng(313), out = [];
+    for (let i = 0; i < 16; i++) out.push({ dy: (r() - 0.5) * 100, w: 5 + r() * 14, a: 0.45 + r() * 0.5 });
+    return out;
+  })();
+  function wipePath() {
+    if (XC.path) return XC.path;
+    const x0 = 48, x1 = 1232, y0 = 108, y1 = 628, rows = 6, path = [];
+    for (let r = 0; r <= rows; r++) {
+      const y = y0 + (y1 - y0) * r / rows;
+      path.push(r % 2 ? [x1, y] : [x0, y]);
+      path.push(r % 2 ? [x0, y + 8] : [x1, y + 8]);
+    }
+    XC.path = seg(path, 12);
+    return XC.path;
+  }
+  function applyWipe(ctx, u) {
+    const P = wipePath();
+    const n = Math.max(2, Math.ceil(P.length * Math.min(1, u)));
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const sweep = (dy) => {
+      ctx.beginPath();
+      P.slice(0, n).forEach(([x, y], i) => (i ? ctx.lineTo(x, y + dy) : ctx.moveTo(x, y + dy)));
+      ctx.stroke();
+    };
+    ctx.strokeStyle = 'rgba(0,0,0,0.95)'; ctx.lineWidth = 118; sweep(0);
+    for (const f of FIBRES) { ctx.strokeStyle = `rgba(0,0,0,${f.a})`; ctx.lineWidth = f.w; sweep(f.dy); }
+    ctx.restore();
+    return P[n - 1];
+  }
+  function haze(ctx) {
+    const rh = H.rng(79);
+    ctx.save(); ctx.lineCap = 'round'; ctx.filter = 'blur(6px)';
+    for (let i = 0; i < 10; i++) {
+      const x = rh.range(180, 1100), y = rh.range(140, 580);
+      ctx.strokeStyle = `rgba(120,128,135,${rh.range(0.05, 0.1)})`; ctx.lineWidth = rh.range(36, 80);
+      ctx.beginPath(); ctx.moveTo(x - 170, y);
+      ctx.quadraticCurveTo(x, y + rh.range(-20, 20), x + 170, y + rh.range(-8, 8)); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  const BEATS = [
+    { n: 1, t0: 0.20, t1: 5.80, say: 'A chatbot writes a reply. An agent gets the job done.' },
+    { n: 2, t0: 6.00, t1: 11.60, say: 'An agent needs instructions, knowledge, and a task. Then it acts.' },
+    { n: 3, t0: 11.80, t1: 20.60, say: 'Southern Regional College calls the Level 3 Award Transforming Business Process Using AI Agents. Seventeen weeks. Tuesday evening. On eCampus.' },
+    { n: 4, t0: 20.80, t1: 27.40, say: 'You build one in Copilot Studio, test it, refine it, and share it in Teams.' },
+    { n: 5, t0: 27.60, t1: 35.20, say: 'Summarise the inbox. Read the spreadsheet. Draft the reply. Then you check it.' },
+    { n: 6, t0: 35.40, t1: 42.20, say: 'One rule. The agent may only see what you already have permission to see.' },
+    { n: 7, t0: 42.40, t1: 50.00, say: 'Level 4 is Artificial Intelligence and Machine Learning. Sixteen weeks. Models, vision, chat, and responsible use.' },
+    { n: 8, t0: 50.20, t1: 64.40, say: 'Level 3: eighteen plus, and GCSE English and Maths. No previous AI is required. Level 4: a related Level 3, or experience. These sessions are listed at no fee. Portfolio. Pass or fail. No exam.' },
+    { n: 9, t0: 64.60, t1: 69.60, say: 'Build the agent first. Then learn the intelligence underneath it.' },
+  ];
+  const DURATION = BEATS[8].t1 + 1;
+
+  function wordTimes(b) {
+    const words = b.say.split(/\s+/);
+    const weight = words.map((w) => 1 + (/[.!?]$/.test(w) ? 0.8 : 0));
+    const sum = weight.reduce((s, w) => s + w, 0);
+    const span = b.t1 - b.t0;
+    let t = b.t0;
+    return words.map((w, i) => {
+      const start = t;
+      t += span * weight[i] / sum;
+      return { w, t: start, end: t };
+    });
+  }
+  function times(n) {
+    const b = BEATS[n - 1];
+    if (!b._w) b._w = wordTimes(b);
+    return b._w;
+  }
+  function norm(w) { return String(w).toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  function findWord(n, word, nth) {
+    nth = nth || 0;
+    const key = norm(word);
+    let k = 0;
+    for (const x of times(n)) {
+      if (norm(x.w) === key) {
+        if (k === nth) return x;
+        k++;
+      }
+    }
+    throw new Error('missing "' + word + '" #' + nth + ' in beat ' + n);
+  }
+  function land(n, word, nth) {
+    const prev = n > 1 ? BEATS[n - 2].t1 : 0;
+    return Math.max(prev, findWord(n, word, nth).t - 0.15);
+  }
+  function said(n, word, nth) { return findWord(n, word, nth).t; }
+  function prog(t, a, b) {
+    if (!(b > a)) return t >= a ? 1 : 0;
+    if (t <= a) return 0;
+    if (t >= b) return 1;
+    return (t - a) / (b - a);
+  }
+  function ease(a, b, t) { return H.ease.inOut(H.clamp((t - a) / Math.max(1e-6, b - a))); }
+  function lerp(a, b, u) { return a + (b - a) * u; }
+  function show(ctx, t, a, b, fade0, fade1, fn) {
+    if (t < a) return;
+    let life = 1;
+    if (fade0 != null && t >= fade0) life = t >= fade1 ? 0 : 1 - ease(fade0, fade1, t);
+    if (life <= 0.012) return;
+    ctx.save();
+    ctx.globalAlpha *= life;
+    fn(prog(t, a, b));
+    ctx.restore();
+  }
+  function mix(c1, c2, u) {
+    const m = H.mix(c1, c2, u);
+    return 'rgb(' + (m[0] | 0) + ',' + (m[1] | 0) + ',' + (m[2] | 0) + ')';
+  }
+
+  const M12 = [BEATS[0].t1, BEATS[0].t1 + 0.72];
+  const M34 = [BEATS[2].t1, BEATS[2].t1 + 0.62];
+  const M45 = [BEATS[3].t1, BEATS[3].t1 + 0.68];
+  const M78 = [BEATS[6].t1, BEATS[6].t1 + 0.58];
+  const M89 = [BEATS[7].t1, BEATS[7].t1 + 0.78];
+  const ERASE = [
+    { id: 'A', t0: BEATS[1].t1, t1: BEATS[1].t1 + 0.72 },
+    { id: 'B', t0: BEATS[4].t1, t1: BEATS[4].t1 + 0.70 },
+    { id: 'C', t0: BEATS[5].t1, t1: BEATS[5].t1 + 0.68 },
+  ];
+
+  function drawA(ctx, t) {
+    const u = ease(M12[0], M12[1], t);
+    show(ctx, t, land(1, 'chatbot'), land(1, 'chatbot') + 0.85, M12[0], M12[0] + 0.42, (p) => {
+      dbox(ctx, 64, 140, 560, 590, K, 20, p);
+    });
+    show(ctx, t, land(1, 'chatbot') + 0.15, land(1, 'reply') - 0.05, M12[0], M12[0] + 0.4, (p) => {
+      dbox(ctx, 130, 270, 490, 430, B, 22, p);
+      if (p > 0.55) ink(ctx, [[168, 430], [150, 490], [230, 424]], B, 5, 23, 1.2, Math.min(1, (p - 0.55) / 0.45));
+    });
+    show(ctx, t, land(1, 'reply'), land(1, 'reply') + 0.55, M12[0], M12[0] + 0.4, (p) => {
+      writeC(ctx, 'A REPLY', 312, 375, 'title', 52, B, 24, -0.01, p);
+    });
+    show(ctx, t, land(1, 'chatbot') + 0.08, land(1, 'chatbot') + 0.7, null, null, () => {
+      const size = lerp(64, 30, u);
+      const x = lerp(312, 185, u);
+      const y = lerp(230, 90, u);
+      const kind = u > 0.62 ? 'label' : 'title';
+      const col = mix(K, B, H.clamp((u - 0.4) / 0.45));
+      writeC(ctx, 'CHAT', x, y, kind, size, col, 21, u > 0.62 ? 0.01 : -0.015, 1);
+    });
+    show(ctx, t, said(1, 'reply') + 0.15, land(1, 'agent') - 0.02, M12[0], M12[0] + 0.3, (p) => {
+      arrow(ctx, [[575, 370], [640, 356], [700, 368]], K, 7, 25, 22, p);
+    });
+    show(ctx, t, land(1, 'agent'), land(1, 'agent') + 0.7, null, null, (p) => {
+      const r = [720, 140, 1216, 590].map((v, i) => lerp(v, [300, 400, 980, 545][i], u));
+      dbox(ctx, r[0], r[1], r[2], r[3], G, 26, p);
+    });
+    show(ctx, t, land(1, 'agent') + 0.05, land(1, 'agent') + 0.55, null, null, () => {
+      const x = lerp(968, 640, u), y = lerp(230, 495, u), size = lerp(64, 72, u);
+      writeC(ctx, 'AGENT', x, y, 'title', size, G, 27, lerp(0.012, -0.012, u), 1);
+    });
+    [['INBOX', 'gets', 320, 30], ['SHEET', 'the', 410, 31], ['DRAFT', 'job', 500, 32]].forEach((row, i) => {
+      const a = row[1] === 'job' ? land(1, 'job') - 0.28 : land(1, row[1]);
+      show(ctx, t, a, a + 0.32, M12[0], M12[0] + 0.32, (p) => {
+        tick(ctx, 800, row[2] - 8, G, row[3], 0.85, p);
+        write(ctx, row[0], 880, row[2] + 14, 'label', 40, K, 40 + i, 0, p);
+      });
+    });
+    show(ctx, t, land(1, 'job'), land(1, 'job') + 0.45, M12[0], M12[0] + 0.3, (p) => {
+      writeC(ctx, 'THE JOB', 968, 575, 'title', 44, G, 28, -0.01, p);
+    });
+    show(ctx, t, land(2, 'instructions'), land(2, 'instructions') + 0.5, null, null, (p) => {
+      dbox(ctx, 56, 130, 400, 300, B, 50, p);
+      writeC(ctx, 'INSTRUCTIONS', 228, 230, 'label', 32, B, 51, -0.02, Math.max(0, (p - 0.35) / 0.65));
+    });
+    show(ctx, t, land(2, 'instructions') + 0.28, land(2, 'instructions') + 0.7, null, null, (p) => {
+      arrow(ctx, [[228, 308], [400, 360], [470, 400]], K, 6, 56, 18, p);
+    });
+    show(ctx, t, land(2, 'knowledge'), land(2, 'knowledge') + 0.5, null, null, (p) => {
+      dbox(ctx, 468, 124, 812, 294, K, 52, p);
+      writeC(ctx, 'KNOWLEDGE', 640, 228, 'label', 36, K, 53, 0.01, Math.max(0, (p - 0.35) / 0.65));
+    });
+    show(ctx, t, land(2, 'knowledge') + 0.28, land(2, 'knowledge') + 0.7, null, null, (p) => {
+      arrow(ctx, [[640, 302], [640, 360], [620, 400]], K, 6, 57, 18, p);
+    });
+    show(ctx, t, land(2, 'task'), land(2, 'task') + 0.5, null, null, (p) => {
+      dbox(ctx, 880, 136, 1224, 306, B, 54, p);
+      writeC(ctx, 'TASK', 1052, 236, 'label', 40, B, 55, 0.015, Math.max(0, (p - 0.35) / 0.65));
+    });
+    show(ctx, t, land(2, 'task') + 0.28, land(2, 'task') + 0.72, null, null, (p) => {
+      arrow(ctx, [[1052, 314], [860, 360], [790, 400]], K, 6, 58, 18, p);
+    });
+    show(ctx, t, land(2, 'acts'), land(2, 'acts') + 0.55, null, null, (p) => {
+      arrow(ctx, [[980, 470], [1088, 468], [1168, 500]], G, 7, 61, 20, Math.min(1, p / 0.55));
+      write(ctx, 'ACTS', 1048, 575, 'title', 52, G, 62, -0.04, Math.max(0, (p - 0.35) / 0.65));
+    });
+  }
+
+  function drawB(ctx, t) {
+    const u34 = ease(M34[0], M34[1], t);
+    const u45 = ease(M45[0], M45[1], t);
+    const l3 = {
+      x: lerp(lerp(70, 58, u34), 150, u45),
+      y: lerp(lerp(310, 148, u34), 90, u45),
+      size: lerp(lerp(150, 48, u34), 30, u45),
+    };
+    show(ctx, t, land(3, 'Level'), land(3, 'Level') + 0.7, null, null, (p) => {
+      const kind = l3.size < 36 ? 'label' : 'title';
+      write(ctx, 'L3', l3.x, l3.y, kind, l3.size, B, 70, -0.02, p);
+    });
+    show(ctx, t, land(3, 'Award'), land(3, 'Award') + 0.4, M34[0], M34[0] + 0.35, (p) => {
+      write(ctx, 'AWARD', 86, 365, 'label', 36, B, 71, 0, p);
+    });
+    show(ctx, t, land(3, 'Seventeen'), land(3, 'Seventeen') + 0.42, M34[0], M34[0] + 0.4, (p) => {
+      write(ctx, '17', 78, 530, 'title', 120, K, 72, -0.02, p);
+    });
+    show(ctx, t, land(3, 'weeks'), land(3, 'weeks') + 0.35, M34[0], M34[0] + 0.4, (p) => {
+      write(ctx, 'WEEKS', 250, 500, 'label', 36, K, 73, 0, p);
+    });
+    const pause = findWord(3, 'Agents').end;
+    show(ctx, t, pause, pause + 0.4, M34[0], M34[0] + 0.35, (p) => {
+      write(ctx, '4.25 HRS', 86, 590, 'label', 34, K, 74, 0, p);
+    });
+    show(ctx, t, land(3, 'AI'), land(3, 'Agents') + 0.35, M45[0], M45[0] + 0.4, (p) => {
+      const x = lerp(470, 160, u34), y = lerp(210, 142, u34), size = lerp(78, 36, u34);
+      const kind = size < 50 ? 'label' : 'title';
+      write(ctx, 'AI AGENTS', x, y, kind, size, K, 75, -0.012, p);
+    });
+    show(ctx, t, land(3, 'Agents') + 0.15, land(3, 'Agents') + 0.5, M34[0], M34[0] + 0.3, (p) => {
+      underline(ctx, 470, 1080, 230, B, 76, p);
+    });
+    show(ctx, t, land(3, 'Business'), land(3, 'Process') + 0.35, M34[0], M34[0] + 0.35, (p) => {
+      write(ctx, 'BUSINESS PROCESS', 478, 290, 'label', 36, K, 77, 0, p);
+    });
+    show(ctx, t, pause + 0.05, pause + 0.45, M34[0], M34[0] + 0.4, (p) => {
+      dbox(ctx, 500, 330, 1180, 560, G, 78, p);
+    });
+    show(ctx, t, land(3, 'eCampus'), land(3, 'eCampus') + 0.45, M34[0], M34[0] + 0.35, (p) => {
+      write(ctx, 'eCAMPUS', 540, 420, 'title', 48, G, 79, -0.01, p);
+    });
+    show(ctx, t, land(3, 'Tuesday'), land(3, 'evening') + 0.3, M34[0], M34[0] + 0.35, (p) => {
+      write(ctx, 'TUE  17:30', 540, 490, 'label', 40, K, 80, 0, p);
+    });
+    show(ctx, t, pause + 0.2, pause + 0.6, M34[0], M34[0] + 0.35, (p) => {
+      write(ctx, '3 NOV 2026', 860, 490, 'label', 36, K, 81, 0, p);
+      write(ctx, 'ADVANCE ME', 540, 545, 'label', 32, B, 82, 0, Math.max(0, (p - 0.4) / 0.6));
+    });
+    show(ctx, t, M34[0] + 0.28, M34[1], M45[0], M45[0] + 0.35, (p) => {
+      write(ctx, '17 WKS', 430, 142, 'label', 32, K, 102, 0, p);
+    });
+
+    const cols = [
+      { n: '1', w: 'BUILD', sub: 'COPILOT', sub2: 'STUDIO', x: 70, word: 'build', subW: 'Copilot', sub2W: 'Studio' },
+      { n: '2', w: 'TEST', sub: 'TRY IT', sub2: '', x: 370, word: 'test', subW: 'test' },
+      { n: '3', w: 'REFINE', sub: 'FIX IT', sub2: '', x: 670, word: 'refine', subW: 'refine' },
+      { n: '4', w: 'SHARE', sub: 'TEAMS', sub2: '', x: 970, word: 'share', subW: 'Teams' },
+    ];
+    cols.forEach((c, i) => {
+      const a = land(4, c.word);
+      const railX = 200 + i * 250;
+      show(ctx, t, a, a + 0.55, M45[0], M45[0] + 0.4, (p) => {
+        dbox(ctx, c.x, 190, c.x + 250, 580, i === 3 ? G : K, 110 + i, p);
+        writeC(ctx, c.n, c.x + 125, 310, 'title', 100, i === 0 ? B : K, 120 + i, -0.02, Math.min(1, Math.max(0, (p - 0.25) / 0.5)));
+      });
+      show(ctx, t, a + 0.12, a + 0.62, null, null, (p) => {
+        const uu = u45;
+        const cx = lerp(c.x + 125, railX + 70, uu);
+        const y = lerp(400, 148, uu);
+        const size = lerp(44, 32, uu);
+        const kind = size < 38 ? 'label' : 'title';
+        writeC(ctx, c.w, cx, y, kind, size, K, 130 + i, 0.01, p);
+      });
+      show(ctx, t, c.sub2 ? land(4, c.sub2W) : a + 0.28, (c.sub2 ? land(4, c.sub2W) : a) + 0.55, M45[0], M45[0] + 0.3, (p) => {
+        writeC(ctx, c.sub, c.x + 125, c.sub2 ? 490 : 500, 'label', 32, i === 3 ? G : B, 140 + i, 0, p);
+        if (c.sub2) writeC(ctx, c.sub2, c.x + 125, 535, 'label', 32, B, 150 + i, 0, Math.max(0, (p - 0.35) / 0.65));
+      });
+      if (i < 3) {
+        show(ctx, t, a + 0.4, a + 0.62, M45[0], M45[0] + 0.25, (p) => {
+          arrow(ctx, [[c.x + 258, 380], [c.x + 292, 372], [c.x + 318, 384]], K, 6, 160 + i, 16, p);
+        });
+      }
+    });
+    const cards = [
+      { t: 'INBOX', s: 'SUMMARISE', icon: 'env', x: 64, word: 'inbox' },
+      { t: 'SHEET', s: 'READ', icon: 'sheet', x: 372, word: 'spreadsheet' },
+      { t: 'DRAFT', s: 'THE REPLY', icon: 'draft', x: 680, word: 'reply' },
+      { t: 'CHECK', s: 'VERIFY', icon: 'tick', x: 988, word: 'check' },
+    ];
+    cards.forEach((c, i) => {
+      const a = land(5, c.word);
+      const col = i === 3 ? R : K;
+      show(ctx, t, a, a + 0.7, null, null, (p) => {
+        dbox(ctx, c.x, 190, c.x + 250, 590, col, 190 + i, Math.min(1, p / 0.45));
+        if (c.icon === 'env' && p > 0.2) envelope(ctx, c.x + 82, 250, 200 + i, Math.min(1, (p - 0.2) / 0.5));
+        if (c.icon === 'sheet' && p > 0.2) sheetIcon(ctx, c.x + 86, 248, 210 + i, Math.min(1, (p - 0.2) / 0.55));
+        if (c.icon === 'draft' && p > 0.2) draftIcon(ctx, c.x + 90, 236, 220 + i, Math.min(1, (p - 0.2) / 0.55));
+        if (c.icon === 'tick' && p > 0.25) tick(ctx, c.x + 90, 280, R, 230, 1.35, Math.min(1, (p - 0.25) / 0.4));
+        writeC(ctx, c.t, c.x + 125, 470, 'title', 44, col, 240 + i, -0.01, Math.min(1, Math.max(0, (p - 0.4) / 0.35)));
+        writeC(ctx, c.s, c.x + 125, 540, 'label', 32, i === 3 ? R : B, 250 + i, 0, Math.min(1, Math.max(0, (p - 0.62) / 0.38)));
+      });
+    });
+    if (u45 > 0.45) {
+      const p = Math.min(1, (u45 - 0.45) / 0.55);
+      for (let i = 0; i < 3; i++) arrow(ctx, [[390 + i * 250, 136], [430 + i * 250, 132], [455 + i * 250, 138]], B, 5, 180 + i, 14, p);
+    }
+  }
+
+  function drawC(ctx, t) {
+    show(ctx, t, land(6, 'rule'), land(6, 'rule') + 0.45, null, null, (p) => {
+      writeC(ctx, 'ONE RULE', 640, 180, 'label', 36, R, 300, -0.015, p);
+    });
+    show(ctx, t, land(6, 'only'), land(6, 'see') + 0.15, null, null, (p) => {
+      writeC(ctx, 'ONLY WHAT', 640, 330, 'title', 92, K, 301, -0.012, p);
+    });
+    show(ctx, t, land(6, 'see'), land(6, 'see') + 0.7, null, null, (p) => {
+      writeC(ctx, 'YOU CAN SEE', 640, 450, 'title', 92, K, 302, 0.01, p);
+    });
+    show(ctx, t, land(6, 'see') + 0.55, land(6, 'see') + 0.95, null, null, (p) => {
+      underline(ctx, 220, 1060, 480, R, 303, p);
+    });
+    show(ctx, t, land(6, 'permission'), land(6, 'permission') + 0.45, null, null, (p) => {
+      writeC(ctx, 'PERMISSIONS', 460, 575, 'label', 36, R, 304, 0, p);
+    });
+    show(ctx, t, BEATS[5].t1 - 0.55, BEATS[5].t1 - 0.12, null, null, (p) => {
+      writeC(ctx, 'UK GDPR', 860, 575, 'label', 36, B, 305, 0, p);
+    });
+  }
+
+  function drawD(ctx, t) {
+    const u78 = ease(M78[0], M78[1], t);
+    const u89 = ease(M89[0], M89[1], t);
+    show(ctx, t, land(7, 'Level'), land(7, 'Level') + 0.4, M78[0], M78[0] + 0.3, (p) => {
+      write(ctx, 'SECBA', 150, 90, 'label', 30, G, 12, 0.01, p);
+    });
+    show(ctx, t, land(7, 'Level'), land(7, 'Level') + 0.55, null, null, (p) => {
+      const size = lerp(lerp(130, 56, u78), 80, u89);
+      const y = lerp(lerp(250, 155, u78), 240, u89);
+      const left = lerp(64, 760, u78);
+      const half = textW(ctx, 'L4', fontOf('title', size)) / 2;
+      const cx = lerp(left + half, 1005, u89);
+      writeC(ctx, 'L4', cx, y, 'title', size, G, 320, lerp(-0.03, 0.015, u89), p);
+    });
+    show(ctx, t, land(7, 'Sixteen'), land(7, 'Sixteen') + 0.4, M78[0], M78[0] + 0.35, (p) => {
+      write(ctx, '16', 78, 430, 'title', 120, K, 321, -0.02, p);
+    });
+    show(ctx, t, land(7, 'weeks'), land(7, 'weeks') + 0.35, M78[0], M78[0] + 0.3, (p) => {
+      write(ctx, 'WEEKS', 250, 400, 'label', 36, K, 322, 0, p);
+    });
+    show(ctx, t, land(7, 'Machine'), land(7, 'Machine') + 0.35, M78[0], M78[0] + 0.3, (p) => {
+      write(ctx, '4 HRS', 86, 500, 'label', 36, K, 323, 0, p);
+    });
+    show(ctx, t, land(7, 'Learning'), land(7, 'Learning') + 0.35, M78[0], M78[0] + 0.3, (p) => {
+      write(ctx, 'eCAMPUS', 86, 555, 'label', 34, B, 324, 0, p);
+    });
+    show(ctx, t, land(7, 'Machine'), land(7, 'Learning') + 0.45, M78[0], M78[0] + 0.4, (p) => {
+      write(ctx, 'MACHINE', 500, 175, 'title', 64, K, 325, -0.01, Math.min(1, p / 0.55));
+      write(ctx, 'LEARNING', 500, 250, 'title', 64, K, 326, 0.008, Math.max(0, (p - 0.4) / 0.6));
+    });
+    show(ctx, t, land(7, 'Learning') + 0.2, land(7, 'Learning') + 0.55, M78[0], M78[0] + 0.25, (p) => {
+      underline(ctx, 500, 1080, 268, G, 327, p);
+    });
+    [['MODELS', 500, 300, 'Models', 0], ['VISION', 860, 300, 'vision', 1], ['CHAT AI', 500, 415, 'chat', 2], ['RESPONSIBLE', 860, 415, 'responsible', 3]].forEach((c) => {
+      const a = land(7, c[3]);
+      show(ctx, t, a, a + 0.48, M78[0], M78[0] + 0.35, (p) => {
+        dbox(ctx, c[1], c[2], c[1] + 320, c[2] + 100, c[4] === 3 ? R : B, 330 + c[4], Math.min(1, p / 0.6));
+        writeC(ctx, c[0], c[1] + 160, c[2] + 66, 'label', 36, K, 340 + c[4], c[4] % 2 ? 0.01 : -0.01, Math.max(0, (p - 0.35) / 0.65));
+      });
+    });
+
+    const left = [56, 180, 600, 470].map((v, i) => lerp(v, [70, 140, 480, 360][i], u89));
+    const right = [680, 180, 1224, 470].map((v, i) => lerp(v, [800, 140, 1210, 360][i], u89));
+    show(ctx, t, land(8, 'Level', 0), land(8, 'Level', 0) + 0.5, null, null, (p) => {
+      dbox(ctx, left[0], left[1], left[2], left[3], B, 362, p);
+    });
+    show(ctx, t, land(8, 'Level', 0) + 0.05, land(8, 'Level', 0) + 0.45, null, null, (p) => {
+      const size = lerp(56, 80, u89);
+      const y = lerp(155, 240, u89);
+      const half = textW(ctx, 'L3', fontOf('title', size)) / 2;
+      const cx = lerp(120 + half, 275, u89);
+      writeC(ctx, 'L3', cx, y, 'title', size, B, 360, -0.02, p);
+    });
+    show(ctx, t, land(8, 'eighteen'), land(8, 'eighteen') + 0.4, M89[0], M89[0] + 0.3, (p) => {
+      write(ctx, '18+', 90, 290, 'title', 88, K, 363, -0.02, p);
+    });
+    show(ctx, t, land(8, 'English'), land(8, 'English') + 0.4, M89[0], M89[0] + 0.28, (p) => {
+      write(ctx, 'GCSE ENG', 300, 250, 'label', 34, K, 364, 0, p);
+    });
+    show(ctx, t, land(8, 'Maths'), land(8, 'Maths') + 0.4, M89[0], M89[0] + 0.28, (p) => {
+      write(ctx, 'GCSE MATHS', 300, 310, 'label', 34, K, 365, 0, p);
+    });
+    show(ctx, t, land(8, 'previous'), land(8, 'previous') + 0.5, M89[0], M89[0] + 0.28, (p) => {
+      write(ctx, 'NO PRIOR AI', 110, 400, 'label', 36, B, 366, 0, p);
+    });
+    show(ctx, t, land(8, 'Level', 1), land(8, 'Level', 1) + 0.5, null, null, (p) => {
+      dbox(ctx, right[0], right[1], right[2], right[3], G, 367, p);
+    });
+    show(ctx, t, land(8, 'related'), land(8, 'related') + 0.45, M89[0], M89[0] + 0.3, (p) => {
+      write(ctx, 'RELATED L3', 730, 290, 'label', 40, K, 368, 0, p);
+    });
+    show(ctx, t, land(8, 'or', 0), land(8, 'or', 0) + 0.3, M89[0], M89[0] + 0.25, (p) => {
+      writeC(ctx, 'OR', 952, 345, 'title', 44, G, 369, 0, p);
+    });
+    show(ctx, t, land(8, 'experience'), land(8, 'experience') + 0.45, M89[0], M89[0] + 0.3, (p) => {
+      write(ctx, 'EXPERIENCE', 760, 420, 'label', 40, K, 370, 0, p);
+    });
+    show(ctx, t, land(8, 'fee'), land(8, 'fee') + 0.4, M89[0], M89[0] + 0.3, (p) => {
+      write(ctx, '£0', 70, 575, 'title', 72, G, 371, -0.02, p);
+    });
+    show(ctx, t, land(8, 'sessions'), land(8, 'sessions') + 0.45, M89[0], M89[0] + 0.28, (p) => {
+      write(ctx, 'THESE SESSIONS', 230, 530, 'label', 30, K, 372, 0, p);
+    });
+    show(ctx, t, land(8, 'Portfolio'), land(8, 'Portfolio') + 0.45, M89[0], M89[0] + 0.28, (p) => {
+      write(ctx, 'PORTFOLIO', 620, 545, 'title', 44, K, 373, -0.01, p);
+    });
+    show(ctx, t, land(8, 'exam'), land(8, 'exam') + 0.4, M89[0], M89[0] + 0.28, (p) => {
+      write(ctx, 'NO EXAM', 960, 545, 'title', 44, R, 374, 0.012, p);
+    });
+    show(ctx, t, M89[0] + 0.2, M89[0] + 0.7, null, null, (p) => {
+      arrow(ctx, [[500, 250], [640, 230], [760, 250]], K, 8, 403, 22, Math.min(1, p / 0.6));
+      writeC(ctx, 'NEXT STEP', 640, 210, 'label', 32, B, 404, -0.02, Math.max(0, (p - 0.45) / 0.55));
+    });
+    show(ctx, t, M89[0] + 0.45, M89[1], null, null, (p) => {
+      writeC(ctx, 'AI AGENTS', 275, 310, 'label', 36, K, 402, 0, p);
+      writeC(ctx, 'LEARNING', 1005, 310, 'label', 36, K, 407, 0, p);
+    });
+    show(ctx, t, land(9, 'Build'), land(9, 'Build') + 0.7, null, null, (p) => {
+      writeC(ctx, 'BUILD IT', 640, 455, 'title', 64, K, 408, -0.012, p);
+    });
+    show(ctx, t, land(9, 'learn'), land(9, 'learn') + 0.7, null, null, (p) => {
+      writeC(ctx, 'THEN LEARN IT', 640, 528, 'title', 56, G, 409, 0.01, p);
+    });
+    show(ctx, t, BEATS[8].t1 - 0.18, BEATS[8].t1 + 0.2, null, null, (p) => {
+      underline(ctx, 300, 980, 548, B, 410, p);
+    });
+  }
+
+  function drawSRC(ctx, t) {
+    const p = prog(t, 0.1, 0.55);
+    if (p > 0) write(ctx, 'SRC', 58, 92, 'label', 32, K, 11, -0.02, p);
+  }
+  function drawFooter(ctx, t) {
+    const a = ERASE[2].t1 - 0.05;
+    const p = prog(t, a, a + 0.5);
+    if (p > 0) writeC(ctx, 'ONLY WHAT YOU CAN SEE', 640, 628, 'label', 30, R, 90, -0.01, p);
+  }
+
+  function boardCache() {
+    if (XC.board) return XC.board;
+    const c = H.layer(1280, 720), g = c.getContext('2d');
+    surface(g, 1280, 720);
+    g.save(); g.beginPath(); g.rect(26, 26, 1228, 624); g.clip();
+    fixedGhost(g, 1280, 720);
+    g.restore();
+    XC.board = c;
+    return c;
+  }
+  function frameCache() {
+    if (XC.frame) return XC.frame;
+    const c = H.layer(1280, 720);
+    frame(c.getContext('2d'), 1280, 720);
+    XC.frame = c;
+    return c;
+  }
+  function wipeLayer() {
+    if (!XC.wipe) XC.wipe = H.layer(1280, 720);
+    const g = XC.wipe.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.filter = 'none';
+    g.clearRect(0, 0, 1280, 720);
+    return XC.wipe;
+  }
+  function residue(id, drawFn, tFreeze) {
+    const key = 'res-' + id;
+    if (!XC[key]) {
+      const c = H.layer(1280, 720), g = c.getContext('2d');
+      const prev = INK;
+      INK = '#30343c';
+      drawFn(g, tFreeze);
+      INK = prev;
+      TIP = null;
+      applyWipe(g, 1);
+      haze(g);
+      XC[key] = c;
+    }
+    return XC[key];
+  }
+  function place(ctx, er, drawFn, t) {
+    if (t < er.t0) { drawFn(ctx, t); return; }
+    const ghostA = 0.32;
+    if (t < er.t1) {
+      const u = (t - er.t0) / (er.t1 - er.t0);
+      const layer = wipeLayer();
+      drawFn(layer.getContext('2d'), er.t0);
+      const pt = applyWipe(layer.getContext('2d'), u);
+      ERASER = pt;
+      ctx.save();
+      ctx.globalAlpha *= u < 0.78 ? 1 : 1 - (u - 0.78) / 0.22;
+      ctx.drawImage(layer, 0, 0);
+      ctx.restore();
+      if (u > 0.78) {
+        ctx.save();
+        ctx.globalAlpha *= ghostA * (u - 0.78) / 0.22;
+        ctx.drawImage(residue(er.id, drawFn, er.t0), 0, 0);
+        ctx.restore();
+      }
+      return;
+    }
+    ctx.save();
+    ctx.globalAlpha *= ghostA;
+    ctx.drawImage(residue(er.id, drawFn, er.t0), 0, 0);
+    ctx.restore();
+  }
+
+  function explainer(ctx, W, H_, t) {
+    TIP = null; ERASER = null; INK = null;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+    ctx.drawImage(boardCache(), 0, 0);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(26, 26, W - 52, 624); ctx.clip();
+    place(ctx, ERASE[0], drawA, t);
+    place(ctx, ERASE[1], drawB, t);
+    place(ctx, ERASE[2], drawC, t);
+    if (t >= BEATS[6].t0 - 0.05) drawD(ctx, t);
+    drawSRC(ctx, t);
+    drawFooter(ctx, t);
+    ctx.restore();
+    sheen(ctx, W, H_, t);
+    if (ERASER) drawEraser(ctx, ERASER[0], ERASER[1]);
+    else if (TIP) drawHand(ctx, TIP[0], TIP[1], TIP[2]);
+    ctx.drawImage(frameCache(), 0, 0);
+    H.grain(ctx, W, H_, 0.018, 9 + (Math.floor(t * 12) % 5));
+  }
+
+  function scoreSound(k) {
+    const mk = (a, b, gain, pan, material, minor) => {
+      gain = gain == null ? 1 : gain;
+      pan = pan || 0;
+      if (b < a + 0.045) b = a + 0.045;
+      const minorFlag = minor !== false;
+      k.noise(a, { dur: 0.018, filter: 'bandpass', f: 1500, q: 1.4, gain: 0.18 * gain, a: 0.001, pan, minor: minorFlag });
+      k.play('stroke', a, { material: material || 'marker', dur: b - a, gain, pan, minor: minorFlag });
+    };
+    const word = (n, w, nth, dur, gain, pan, minor) => mk(land(n, w, nth), land(n, w, nth) + (dur || 0.38), gain, pan, 'marker', minor);
+
+    k.play('pop', 0.04, { f: 330, gain: 0.45, minor: true });
+    mk(0.1, 0.55, 0.7, -0.3);
+    word(1, 'chatbot', 0, 0.75, 0.95, -0.2);
+    word(1, 'reply', 0, 0.5, 0.85, -0.1);
+    mk(said(1, 'reply') + 0.15, land(1, 'agent'), 0.8, 0);
+    word(1, 'agent', 0, 0.6, 1.0, 0.15, false);
+    word(1, 'gets', 0, 0.3, 0.6, 0.1);
+    word(1, 'the', 0, 0.28, 0.6, 0.12);
+    word(1, 'job', 0, 0.4, 1.05, 0.15, false);
+    k.play('pop', said(1, 'job'), { f: 520, gain: 0.55 });
+
+    k.play('swish', M12[0], { dur: M12[1] - M12[0], gain: 0.32, minor: true });
+    word(2, 'instructions', 0, 0.5, 0.85, -0.2);
+    word(2, 'knowledge', 0, 0.48, 0.85, 0);
+    word(2, 'task', 0, 0.48, 0.85, 0.2);
+    word(2, 'acts', 0, 0.5, 1.1, 0.25, false);
+    k.play('pop', said(2, 'acts'), { f: 660, gain: 0.4, minor: true });
+
+    ERASE.forEach((er) => {
+      k.play('erase', er.t0, { dur: er.t1 - er.t0, gain: 0.62 });
+    });
+
+    word(3, 'Level', 0, 0.55, 1.0, -0.15, false);
+    word(3, 'Award', 0, 0.35, 0.7, -0.1);
+    word(3, 'Business', 0, 0.45, 0.7, 0.1);
+    word(3, 'AI', 0, 0.7, 0.9, 0.15);
+    mk(findWord(3, 'Agents').end, findWord(3, 'Agents').end + 0.4, 0.75, 0.1);
+    k.play('tock', said(3, 'Seventeen'), { f: 540, gain: 0.85 });
+    word(3, 'weeks', 0, 0.3, 0.6, -0.05);
+    word(3, 'Tuesday', 0, 0.4, 0.75, 0);
+    word(3, 'eCampus', 0, 0.4, 0.8, 0.1);
+
+    k.play('swish', M34[0], { dur: 0.4, gain: 0.28, minor: true });
+    word(4, 'build', 0, 0.45, 0.9, -0.25);
+    word(4, 'Copilot', 0, 0.4, 0.75, -0.15);
+    word(4, 'test', 0, 0.4, 0.8, -0.05);
+    word(4, 'refine', 0, 0.4, 0.8, 0.08);
+    word(4, 'share', 0, 0.4, 0.85, 0.18);
+    word(4, 'Teams', 0, 0.35, 1.15, 0.25, false);
+    k.play('stamp', said(4, 'Teams'), { gain: 0.8 });
+
+    k.play('swish', M45[0], { dur: 0.4, gain: 0.28, minor: true });
+    word(5, 'inbox', 0, 0.5, 0.8, -0.25);
+    word(5, 'spreadsheet', 0, 0.5, 0.8, -0.05);
+    word(5, 'reply', 0, 0.5, 0.8, 0.1);
+    mk(land(5, 'check'), land(5, 'check') + 0.5, 1.35, 0.25, 'sharpie', false);
+    k.play('tick', said(5, 'check'), { f: 2400, gain: 0.7 });
+
+    word(6, 'rule', 0, 0.4, 0.9, 0, false);
+    word(6, 'only', 0, 0.7, 0.85, -0.05);
+    word(6, 'see', 0, 0.65, 0.85, 0.05);
+    mk(land(6, 'permission'), land(6, 'permission') + 0.4, 1.2, 0, 'sharpie', false);
+    k.play('impact', said(6, 'permission'), { gain: 0.82 });
+    mk(BEATS[5].t1 - 0.55, BEATS[5].t1 - 0.15, 0.6, 0.15);
+
+    word(7, 'Level', 0, 0.5, 1.0, -0.1, false);
+    word(7, 'Machine', 0, 0.55, 0.85, 0.1);
+    k.play('tock', said(7, 'Sixteen'), { f: 500, gain: 0.8 });
+    word(7, 'Models', 0, 0.35, 0.65, -0.1);
+    word(7, 'vision', 0, 0.32, 0.65, 0.15);
+    word(7, 'chat', 0, 0.32, 0.65, -0.05);
+    word(7, 'responsible', 0, 0.4, 0.75, 0.15);
+
+    k.play('swish', M78[0], { dur: 0.35, gain: 0.25, minor: true });
+    word(8, 'Level', 0, 0.4, 0.8, -0.2);
+    k.play('tock', said(8, 'eighteen'), { f: 460, gain: 0.6 });
+    word(8, 'English', 0, 0.35, 0.6, -0.1);
+    word(8, 'Maths', 0, 0.35, 0.6, 0);
+    word(8, 'previous', 0, 0.4, 0.7, -0.15);
+    word(8, 'Level', 1, 0.4, 0.8, 0.2);
+    word(8, 'related', 0, 0.4, 0.7, 0.15);
+    word(8, 'experience', 0, 0.4, 0.7, 0.18);
+    k.play('impact', said(8, 'fee'), { gain: 0.9 });
+    mk(land(8, 'fee'), land(8, 'fee') + 0.35, 1.0, -0.1, 'marker', false);
+    word(8, 'Portfolio', 0, 0.4, 0.75, 0.05);
+    mk(land(8, 'exam'), land(8, 'exam') + 0.35, 1.05, 0.2, 'marker', false);
+    k.play('tock', said(8, 'exam'), { f: 700, gain: 0.55 });
+
+    k.play('swish', M89[0], { dur: 0.45, gain: 0.3, minor: true });
+    mk(M89[0] + 0.2, M89[0] + 0.65, 0.85, 0);
+    word(9, 'Build', 0, 0.6, 1.0, 0, false);
+    word(9, 'learn', 0, 0.6, 0.95, 0.05);
+    mk(BEATS[8].t1 - 0.12, BEATS[8].t1 + 0.18, 1.15, 0, 'marker', false);
+    k.play('success', BEATS[8].t1 + 0.02, { f: 'G5', gain: 0.78 });
+    k.play('click', DURATION - 0.35, { f: 1300, gain: 0.55, minor: true });
+  }
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const W = 1280, H_ = 720;
+  let t = 0, playing = false, last = 0, raf = 0;
+  let voice = null, soundOn = true, loopOn = true, stopSound = null;
+
+  function fmt(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec - m * 60;
+    return m + ':' + s.toFixed(2).padStart(5, '0');
+  }
+  function updateUI() {
+    document.getElementById('time').textContent = fmt(t);
+    const scrub = document.getElementById('scrub');
+    if (document.activeElement !== scrub) scrub.value = String(t);
+    document.getElementById('play').textContent = playing ? 'Pause' : 'Play';
+  }
+  function drawAt(time) {
+    t = Math.max(0, Math.min(DURATION, time));
+    explainer(ctx, W, H_, t);
+    updateUI();
+  }
+  function restartSound() {
+    if (stopSound) { stopSound(); stopSound = null; }
+    if (soundOn && playing) stopSound = window.SOUND.live(scoreSound, t, { voiceover: true });
+  }
+  function pause() {
+    playing = false;
+    cancelAnimationFrame(raf);
+    if (voice) voice.pause();
+    if (stopSound) { stopSound(); stopSound = null; }
+    updateUI();
+  }
+  function play() {
+    if (!voice && t >= DURATION - 0.05) t = 0;
+    playing = true;
+    if (voice) {
+      if (voice.currentTime >= (voice.duration || DURATION) - 0.05) voice.currentTime = 0;
+      voice.play();
+      t = voice.currentTime || 0;
+    }
+    restartSound();
+    last = performance.now();
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(tick);
+    updateUI();
+  }
+  function tick(ts) {
+    if (!playing) return;
+    if (voice) {
+      t = voice.currentTime || 0;
+      if (voice.ended) {
+        if (loopOn) {
+          voice.currentTime = 0;
+          voice.play();
+          t = 0;
+          restartSound();
+        } else { drawAt(DURATION); pause(); return; }
+      }
+    } else {
+      const dt = Math.min(0.05, Math.max(0, (ts - last) / 1000));
+      last = ts;
+      t += dt;
+      if (t >= DURATION) {
+        if (loopOn) { t = 0; restartSound(); }
+        else { drawAt(DURATION); pause(); return; }
+      }
+    }
+    explainer(ctx, W, H_, t);
+    updateUI();
+    raf = requestAnimationFrame(tick);
+  }
+  function loadVoice(file) {
+    if (!file) return;
+    pause();
+    if (voice) { voice.pause(); if (voice.src) URL.revokeObjectURL(voice.src); }
+    voice = new Audio();
+    voice.preload = 'auto';
+    voice.src = URL.createObjectURL(file);
+    document.getElementById('vname').textContent = file.name;
+    voice.addEventListener('ended', () => {
+      if (!playing) return;
+      if (loopOn) { voice.currentTime = 0; voice.play(); t = 0; restartSound(); }
+      else { drawAt(Math.min(DURATION, voice.duration || DURATION)); pause(); }
+    });
+    drawAt(0);
+  }
+
+  document.getElementById('play').addEventListener('click', () => { playing ? pause() : play(); });
+  document.getElementById('sound').addEventListener('click', () => {
+    soundOn = !soundOn;
+    const btn = document.getElementById('sound');
+    btn.textContent = soundOn ? 'Sound on' : 'Sound off';
+    btn.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    if (!soundOn && stopSound) { stopSound(); stopSound = null; }
+    if (soundOn && playing) restartSound();
+  });
+  document.getElementById('loop').addEventListener('change', (e) => { loopOn = e.target.checked; });
+  document.getElementById('file').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) loadVoice(f); });
+  const scrub = document.getElementById('scrub');
+  scrub.max = String(DURATION);
+  scrub.addEventListener('input', () => {
+    const v = Number(scrub.value);
+    if (voice) { try { voice.currentTime = Math.min(v, voice.duration || v); } catch (e) { /* not ready */ } }
+    drawAt(v);
+    if (playing) restartSound();
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); playing ? pause() : play(); }
+  });
+  const stage = document.getElementById('stage');
+  window.addEventListener('dragover', (e) => { e.preventDefault(); stage.classList.add('drop'); });
+  window.addEventListener('dragleave', () => stage.classList.remove('drop'));
+  window.addEventListener('drop', (e) => {
+    e.preventDefault(); stage.classList.remove('drop');
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadVoice(f);
+  });
+
+  window.seek = drawAt;
+  window.DURATION = DURATION;
+  window.scoreSound = scoreSound;
+  window.explainer = explainer;
+  window.BEATS = BEATS;
+
+  const specs = [
+    '400 66px "Permanent Marker"', '400 92px "Permanent Marker"', '400 150px "Permanent Marker"',
+    '400 48px "Permanent Marker"', '700 32px "Kalam"', '700 40px "Kalam"', '700 36px "Kalam"', '700 30px "Kalam"',
+  ];
+  const sample = 'AaZz09 SRC L3 L4 £0 17 4.25 ONLY WHAT YOU CAN SEE AGENT BUILD';
+  Promise.all(specs.map((f) => document.fonts.load(f, sample))).then(() => document.fonts.ready).then(() => {
+    [5.8, 11.6, 12.2, 20.6, 27.4, 35.2, 36.0, 42.2, 50, 64.4, 70.6].forEach((tt) => explainer(ctx, W, H_, tt));
+    drawAt(0);
+    document.body.dataset.ready = '1';
+  }).catch(() => { drawAt(0); document.body.dataset.ready = '1'; });
+})();
+
+</script>
+</body>
+</html>
